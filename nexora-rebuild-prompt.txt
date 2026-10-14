@@ -38,7 +38,7 @@ Admin pages (all in public/admin/):
   shipments.php             Create a shipment form
   shipment-management.php   List / search all shipments
   shipment-control.php      Main workspace (6 tabs)
-  shipment-route.php        Multi-modal route editor (Mapbox)
+  shipment-route.php        Multi-modal route editor (MapLibre)
   tracking-operations.php   Day-to-day controls
   fleet.php                 All active shipments on one map
   people.php                People hub
@@ -58,7 +58,7 @@ Core files:
   app/Tracking/Engine.php   Movement simulation
   app/helpers.php           csrfToken(), verifyCsrf(), redirect()
   config/config.php         Framework config
-  .env                      APP_NAME, MAPBOX_TOKEN, DB path
+  .env                      APP_NAME, APP_URL, MAP_STYLE_URL, DB path
 
 ───────────────────────────────────────────────────────────────
 DATABASE (SQLite at database/database.sqlite)
@@ -96,9 +96,12 @@ Tables:
 ───────────────────────────────────────────────────────────────
 KEY INTEGRATIONS
 ───────────────────────────────────────────────────────────────
-Mapbox GL JS v3.6.0
-  Token in .env as MAPBOX_TOKEN
-  Style: mapbox://styles/mapbox/satellite-streets-v12
+MapLibre GL JS v3.6.2 (vendored at public/assets/vendor/maplibre/)
+  No token, no account, no API key required.
+  Basemap: OpenFreeMap vector tiles (free, keyless)
+  Style URL in .env as MAP_STYLE_URL
+  Default: https://tiles.openfreemap.org/styles/liberty
+  Other options: /bright /positron /dark /fiord
   Used on: track.php, shipment-control.php, shipment-route.php,
            fleet.php
   Attribution: compact mode (required by licence)
@@ -137,7 +140,7 @@ HARD-WON RULES (these are the ones that caused bugs)
    @error_reporting(E_ERROR | E_PARSE);
    Otherwise PHP warnings get written into the HTML/JS.
 
-3. Mapbox fullscreen must be CSS-only (position:fixed + resize),
+3. MapLibre fullscreen must be CSS-only (position:fixed + resize),
    NOT the native Fullscreen API. Native API triggers Android's
    "drag to exit" toast and the customer can't see it anyway.
 
@@ -221,7 +224,7 @@ CUSTOMER EXPERIENCE
 2. Types tracking number → goes to /track.php
 3. First visit: form asks for name/email/phone → saved in DB
 4. Then sees:
-   - Mapbox satellite map with the shipment's current position
+   - MapLibre vector map with the shipment's current position
    - Flag pins for origin/destination
    - Route colored per transport mode (gold air, blue sea,
      grey truck, purple van, pink bike, dark pedestrian)
@@ -273,7 +276,7 @@ See who tracked what:
 RESUMPTION CHECKLIST (if returning to this project)
 ───────────────────────────────────────────────────────────────
 1. Verify DB: sqlite3 database/database.sqlite ".tables"
-2. Check .env exists with MAPBOX_TOKEN
+2. Check .env exists with APP_URL + MAP_STYLE_URL
 3. Start server: cd public && php -S 127.0.0.1:8000
 4. Open http://127.0.0.1:8000/ (public) and /admin/login.php
 5. Run the script-balance scan (in manual Appendix E)

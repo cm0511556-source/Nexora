@@ -30,6 +30,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verifyCsrf($_POST["csrf_token"] ?? null)) {
         $error = "Invalid security token. Please try again.";
     } elseif (Auth::login($email, $password)) {
+        nxAudit('admin.login', 'admin', (int) ($_SESSION['admin_id'] ?? 0), $email);
         header("Location: /admin/index.php");
         exit;
     } else {
@@ -71,6 +72,7 @@ button{width:100%;margin-top:22px;padding:14px;border:0;border-radius:10px;backg
 <input type="password" name="password" placeholder="Enter your password" required>
 <button type="submit">Sign In</button>
 </form>
+<p style="text-align:center;margin-top:14px;"><a href="/admin/password-reset.php" style="color:#2563eb;font-size:14px;">Forgot your password?</a></p>
 <div class="footer">Nexora Logistics Management</div>
 </div>
 </body>

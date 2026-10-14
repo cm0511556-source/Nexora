@@ -1,1 +1,10 @@
 .env
+
+# Never commit the live database or local runtime artifacts.
+database/*.sqlite
+database/*.sqlite-*
+database/*.db
+storage/
+.tooling/
+*.log
+.DS_Store

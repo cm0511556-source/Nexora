@@ -12,6 +12,12 @@ Auth::requireAdmin();
 
 $db = Database::connection();
 
+// Active carriers for the "Carrier / partner" picker on the create form.
+$nxCarriers = [];
+try {
+    $nxCarriers = $db->query("SELECT id, name, code FROM carriers WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
+} catch (Throwable $e) {}
+
 // Load editable form placeholders from site_content
 $nxPh = [];
 try {
@@ -64,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $customerName = trim((string)($_POST['customer_name'] ?? ''));
         $customerEmail = trim((string)($_POST['customer_email'] ?? ''));
         $customerPhone = trim((string)($_POST['customer_phone'] ?? ''));
+        $customerId = (int)($_POST['customer_id'] ?? 0);
         $vehicleName = trim((string)($_POST['vehicle_name'] ?? ''));
         $vehicleNumber = trim((string)($_POST['vehicle_number'] ?? ''));
         $status = trim((string)($_POST['status'] ?? 'pending'));
@@ -98,6 +105,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($customerEmail !== '' && !filter_var($customerEmail, FILTER_VALIDATE_EMAIL)) {
             throw new RuntimeException('Please enter a valid customer email address.');
+        }
+
+        // ---- Resolve / create the linked customer record -------------------
+        if ($customerId > 0) {
+            $cs = $db->prepare('SELECT * FROM customers WHERE id = :id LIMIT 1');
+            $cs->execute([':id' => $customerId]);
+            $cust = $cs->fetch();
+            if (!$cust) {
+                $customerId = 0;
+            } else {
+                if ($customerName === '')  { $customerName = (string) $cust['name']; }
+                if ($customerEmail === '') { $customerEmail = (string) $cust['email']; }
+                if ($customerPhone === '') { $customerPhone = (string) $cust['phone']; }
+            }
+        }
+
+        if ($customerId === 0) {
+            $found = null;
+            if ($customerEmail !== '') {
+                $cs = $db->prepare('SELECT * FROM customers WHERE email = :e LIMIT 1');
+                $cs->execute([':e' => $customerEmail]);
+                $found = $cs->fetch() ?: null;
+            }
+            if (!$found && $customerPhone !== '') {
+                $cs = $db->prepare('SELECT * FROM customers WHERE phone = :p LIMIT 1');
+                $cs->execute([':p' => $customerPhone]);
+                $found = $cs->fetch() ?: null;
+            }
+            if ($found) {
+                $customerId = (int) $found['id'];
+            } elseif ($customerEmail !== '' || $customerPhone !== '') {
+                $db->prepare('INSERT INTO customers (name, email, phone) VALUES (:n, :e, :p)')
+                   ->execute([':n' => $customerName, ':e' => $customerEmail ?: null, ':p' => $customerPhone ?: null]);
+                $customerId = (int) $db->lastInsertId();
+            }
         }
 
         if (
@@ -141,6 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $db->prepare(
                 'INSERT INTO shipments (
                     tracking_number,
+                    customer_id,
                     customer_name,
                     customer_email,
                     customer_phone,
@@ -169,6 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     updated_at
                 ) VALUES (
                     :tracking_number,
+                    :customer_id,
                     :customer_name,
                     :customer_email,
                     :customer_phone,
@@ -200,6 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt->execute([
                 'tracking_number' => $trackingNumber,
+                'customer_id' => $customerId > 0 ? $customerId : null,
                 'customer_name' => $customerName,
                 'customer_email' => $customerEmail !== '' ? $customerEmail : null,
                 'customer_phone' => $customerPhone !== '' ? $customerPhone : null,
@@ -278,6 +323,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $db->commit();
 
+            nxAudit('shipment.create', 'shipment', $shipmentId, $trackingNumber);
+
             // --- Upload pickup media ---
             if (!empty($_FILES['pickup_media']) && is_array($_FILES['pickup_media']['name'])) {
                 require_once __DIR__ . '/_upload_media_after_create.php';
@@ -309,6 +356,13 @@ $message =
 }
 
 $admin = Auth::admin();
+
+$customerOptions = [];
+try {
+    $customerOptions = $db->query('SELECT id, name, email, phone FROM customers ORDER BY name')->fetchAll();
+} catch (Throwable $e) {
+    $customerOptions = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -413,9 +467,9 @@ body{
     }
 }
 </style>
-<link rel="stylesheet" href="/assets/css/app.css">
-    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 <body>
 
@@ -494,18 +548,42 @@ body{
                 </div>
 
                 <div class="field">
+                    <label>Existing customer (optional)</label>
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                        <select name="customer_id" id="nx-customer-select" style="flex:1;min-width:180px;">
+                            <option value="">— New customer / not linked —</option>
+                            <?php foreach ($customerOptions as $co): ?>
+                                <option
+                                    value="<?= (int) $co['id'] ?>"
+                                    data-name="<?= htmlspecialchars((string) $co['name'], ENT_QUOTES) ?>"
+                                    data-email="<?= htmlspecialchars((string) $co['email'], ENT_QUOTES) ?>"
+                                    data-phone="<?= htmlspecialchars((string) $co['phone'], ENT_QUOTES) ?>"
+                                ><?= htmlspecialchars((string) $co['name'], ENT_QUOTES) ?><?= $co['email'] ? ' · ' . htmlspecialchars((string) $co['email'], ENT_QUOTES) : '' ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button
+                            type="button"
+                            class="btn btn-outline"
+                            id="nx-copy-customer"
+                            style="white-space:nowrap;color:#0b1d3a;border-color:#cbd5e1;"
+                        >📋 Copy Customer Details</button>
+                    </div>
+                    <p style="font-size:.78rem;color:#94a3b8;margin:.35rem 0 0;">Pick a saved customer and copy their name, email and phone into the fields below.</p>
+                </div>
+
+                <div class="field">
                     <label>Customer Name</label>
-                    <input type="text" name="customer_name" required>
+                    <input type="text" name="customer_name" id="nx-customer-name" required>
                 </div>
 
                 <div class="field">
                     <label>Customer Email</label>
-                    <input type="email" name="customer_email">
+                    <input type="email" name="customer_email" id="nx-customer-email">
                 </div>
 
                 <div class="field">
                     <label>Customer Phone</label>
-                    <input type="text" name="customer_phone">
+                    <input type="text" name="customer_phone" id="nx-customer-phone">
                 </div>
 
                 <div class="field">
@@ -771,6 +849,25 @@ body{
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
+})();
+</script>
+
+<script>
+/* Copy customer details into the shipment form */
+(function(){
+  var sel = document.getElementById('nx-customer-select');
+  var btn = document.getElementById('nx-copy-customer');
+  if (!sel || !btn) return;
+  btn.addEventListener('click', function(){
+    var opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) { alert('Choose a saved customer first.'); return; }
+    var n = document.getElementById('nx-customer-name');
+    var e = document.getElementById('nx-customer-email');
+    var p = document.getElementById('nx-customer-phone');
+    if (n) n.value = opt.getAttribute('data-name') || '';
+    if (e) e.value = opt.getAttribute('data-email') || '';
+    if (p) p.value = opt.getAttribute('data-phone') || '';
+  });
 })();
 </script>
 

@@ -11,7 +11,7 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Content — Nexora Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 <style>
 body{background:#f1f5f9}.wrap{max-width:900px;margin:0 auto;padding:1rem}
 .tile-grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
@@ -20,8 +20,8 @@ body{background:#f1f5f9}.wrap{max-width:900px;margin:0 auto;padding:1rem}
 .tile-icon{font-size:2rem;margin-bottom:.75rem}
 .tile-title{font-weight:800;color:#0b1d3a;font-size:1.1rem;margin:0 0 .35rem}
 .tile-desc{color:#5b6b85;font-size:.92rem;margin:0}
-</style>    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+</style>    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head><body>
 <header class="navbar">
   <a href="/admin/index.php" class="logo" style="text-decoration:none;color:inherit;"><span class="logo-badge">N</span><span class="logo-text">Nexora Admin</span></a>

@@ -32,11 +32,13 @@ function handleLogoUpload(int $carrierId): array {
     $mime = $finfo->file($f['tmp_name']);
     if (!in_array($mime, ALLOWED_MIMES, true)) return [null, 'Only PNG, JPG, WEBP, or SVG allowed.'];
 
-    $ext = match($mime) {
-        'image/png' => 'png', 'image/jpeg' => 'jpg',
-        'image/webp' => 'webp', 'image/svg+xml' => 'svg',
-        default => 'bin'
-    };
+    switch ($mime) {
+        case 'image/png': $ext = 'png'; break;
+        case 'image/jpeg': $ext = 'jpg'; break;
+        case 'image/webp': $ext = 'webp'; break;
+        case 'image/svg+xml': $ext = 'svg'; break;
+        default: $ext = 'bin';
+    }
     $name = 'carrier-' . $carrierId . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
     $dest = dirname(__DIR__) . '/assets/carriers/' . $name;
     if (!move_uploaded_file($f['tmp_name'], $dest)) return [null, 'Could not save uploaded logo.'];
@@ -78,14 +80,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            ->execute([':p'=>$fileName, ':id'=>$id]);
                     }
                     if (!$error) $message = $id > 0 ? 'Carrier saved.' : 'Carrier added.';
+                    if (!$error) nxAudit('carrier.save', 'carrier', $id, $name);
                 }
             } elseif ($op === 'toggle') {
                 $id = (int)($_POST['id'] ?? 0);
                 $db->prepare('UPDATE carriers SET is_active = 1 - is_active, updated_at=CURRENT_TIMESTAMP WHERE id=:id')->execute([':id'=>$id]);
+                nxAudit('carrier.toggle', 'carrier', $id);
                 $message = 'Carrier status updated.';
             } elseif ($op === 'delete') {
                 $id = (int)($_POST['id'] ?? 0);
                 $db->prepare('DELETE FROM carriers WHERE id=:id')->execute([':id'=>$id]);
+                nxAudit('carrier.delete', 'carrier', $id);
                 $message = 'Carrier deleted.';
             }
         } catch (Throwable $e) {
@@ -114,7 +119,7 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Carriers — Nexora Logistics Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 <style>
   body { background: #f1f5f9; }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 1rem; }
@@ -137,8 +142,8 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
   .btn-sm:hover{ background:#f1f5f9; }
   .btn-danger{ color:#991b1b; border-color:#fecaca; background:#fef2f2; }
 </style>
-    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 <body>
 <header class="navbar">
@@ -187,7 +192,7 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
       </div>
 
       <?php if ($edit && !empty($edit['logo_path'])): ?>
-        <p style="margin-top:.75rem;font-size:.85rem;color:#475569;">Current: <code>/assets/carriers/<?= hh($edit['logo_path']) ?></code></p>
+        <p style="margin-top:.75rem;font-size:.85rem;color:#475569;">Current: <code><?= hh(asset('carriers/' . $edit['logo_path'])) ?></code></p>
       <?php endif; ?>
 
       <div class="actions">
@@ -211,7 +216,7 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
         <?php foreach ($carriers as $c): ?>
           <?php
             $logoSrc = null;
-            if (!empty($c['logo_path'])) $logoSrc = '/assets/carriers/' . rawurlencode($c['logo_path']);
+            if (!empty($c['logo_path'])) $logoSrc = asset('carriers/' . rawurlencode($c['logo_path']));
             elseif (!empty($c['logo_url'])) $logoSrc = $c['logo_url'];
           ?>
           <tr>

@@ -1,57 +1,91 @@
 <?php
 declare(strict_types=1);
 
-session_start();
+/**
+ * Tracking identity gate.
+ *
+ * A customer must confirm their name plus the email OR phone on file for the
+ * shipment before the live map is unlocked. Shipments that have no contact
+ * details stored are allowed through, flagged as "Unverified".
+ *
+ * On success the visit is remembered for 30 days with a secure cookie, so the
+ * customer only ever confirms once per device.
+ */
 
-$envFile = __DIR__ . '/../.env';
-if (file_exists($envFile)) {
-    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-        $line = trim($line);
-        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) continue;
-        [$name, $value] = explode('=', $line, 2);
-        $_ENV[trim($name)] = trim(trim($value), "\"'");
-    }
+require_once dirname(__DIR__) . '/config/config.php';
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
 }
-$appName = $_ENV['APP_NAME'] ?? 'Nexora Logistics';
 
-function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES); }
+$appName = (string) env('APP_NAME', 'Nexora Logistics');
+$tracking = nxTrackingFromRequest();
+$name  = trim((string) ($_POST['customer_name'] ?? ''));
+$email = trim((string) ($_POST['customer_email'] ?? ''));
+$phone = trim((string) ($_POST['customer_phone'] ?? ''));
+$errors = [];
 
-$tracking = trim((string)($_POST['tracking'] ?? $_GET['tracking'] ?? ''));
-$name     = trim((string)($_POST['customer_name'] ?? ''));
-$email    = trim((string)($_POST['customer_email'] ?? ''));
-$phone    = trim((string)($_POST['customer_phone'] ?? ''));
-$errors   = [];
+$shipment = null;
+try {
+    $pdo = nxPdo();
+    if ($tracking !== '') {
+        $stmt = $pdo->prepare('SELECT * FROM shipments WHERE tracking_number = :t LIMIT 1');
+        $stmt->execute([':t' => $tracking]);
+        $shipment = $stmt->fetch() ?: null;
+    }
+} catch (Throwable $e) {
+    $shipment = null;
+}
+
+$hasContact = $shipment
+    && (trim((string) $shipment['customer_email']) !== '' || trim((string) $shipment['customer_phone']) !== '');
+
+// Already remembered? Go straight through.
+if ($tracking !== '' && $shipment && nxTrackerVerified($tracking)) {
+    header('Location: /track.php?id=' . rawurlencode($tracking));
+    exit;
+}
+
+// Pre-fill from an earlier lookup on this device, if any.
+if ($name === '' && $tracking !== '' && !empty($_SESSION['nx_verified_lookups'][strtoupper($tracking)]['name'])) {
+    $name = (string) $_SESSION['nx_verified_lookups'][strtoupper($tracking)]['name'];
+}
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
-    if ($tracking === '') $errors[] = 'Tracking number is required.';
-    if ($name === '')     $errors[] = 'Your name is required.';
-    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'A valid email is required.';
-    if ($phone === '')    $errors[] = 'A phone number is required.';
+    if ($tracking === '') {
+        $errors[] = 'Tracking number is required.';
+    } elseif (!$shipment) {
+        $errors[] = 'We could not find a shipment with that tracking number.';
+    }
+    if ($name === '') {
+        $errors[] = 'Your name is required.';
+    }
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'A valid email is required.';
+    }
+    if ($phone === '') {
+        $errors[] = 'A phone number is required.';
+    }
 
-    if (!$errors) {
-        try {
-            $dbPath = dirname(__DIR__) . '/database/database.sqlite';
-            $pdo = new PDO('sqlite:' . $dbPath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-            $pdo->prepare('INSERT INTO tracking_lookups (tracking_number, customer_name, customer_email, customer_phone, ip_address, user_agent) VALUES (:t,:n,:e,:p,:ip,:ua)')
-                ->execute([
-                    ':t' => $tracking,
-                    ':n' => $name,
-                    ':e' => $email,
-                    ':p' => $phone,
-                    ':ip' => $_SERVER['REMOTE_ADDR'] ?? null,
-                    ':ua' => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
-                ]);
-            $_SESSION['nx_verified_lookups'][strtoupper($tracking)] = [
-                'name' => $name,
-                'email' => $email,
-                'at' => time(),
-            ];
-            header('Location: /track.php?tracking=' . urlencode($tracking));
-            exit;
-        } catch (Throwable $e) {
-            $errors[] = 'Could not save your details. Please try again.';
+    if (!$errors && $shipment) {
+        $check = nxCheckTrackerIdentity($shipment, $email, $phone);
+        if (!$check[0]) {
+            $errors[] = $check[3] !== '' ? $check[3] : 'Those details do not match our records.';
+        } else {
+            try {
+                nxRegisterTracker($tracking, $name, $email, $phone, (int) $check[1], (string) $check[2]);
+                header('Location: /track.php?id=' . rawurlencode($tracking));
+                exit;
+            } catch (Throwable $e) {
+                $errors[] = 'Could not save your details. Please try again.';
+            }
         }
     }
+}
+
+function hh(?string $v): string
+{
+    return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 }
 ?>
 <!DOCTYPE html>
@@ -61,7 +95,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Confirm your details — <?= hh($appName) ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 <style>
   .pretrack-wrap { max-width: 480px; margin: 3rem auto; padding: 2rem; background: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgba(11,29,58,.10); border: 1px solid #e5e7eb; }
   .pretrack-wrap h1 { color: #0b1d3a; font-size: 1.4rem; margin: 0 0 .35rem; }
@@ -72,6 +106,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
   .pretrack-wrap button { width: 100%; padding: .95rem; border-radius: 10px; border: 0; background: linear-gradient(135deg, #f0b429, #ffd166); color: #0b1d3a; font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 1.25rem; font-family: inherit; }
   .pretrack-wrap button:hover { transform: translateY(-1px); }
   .pretrack-err { background: rgba(220,38,38,.08); color: #991b1b; padding: .85rem 1rem; border-radius: 10px; font-size: .9rem; margin-bottom: 1rem; }
+  .pretrack-note { background: rgba(37,99,235,.07); color: #1e40af; padding: .75rem .9rem; border-radius: 9px; font-size: .85rem; margin-bottom: 1rem; }
   .pretrack-back { display: inline-block; margin-top: 1rem; color: #5b6b85; font-size: .85rem; text-decoration: none; }
   .pretrack-back:hover { color: #0b1d3a; }
 </style>
@@ -80,7 +115,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
 <div class="pretrack-wrap">
   <h1>Confirm your details</h1>
-  <p class="lead">So we can keep you updated on this shipment, please tell us who you are.</p>
+  <p class="lead">To protect this shipment, please confirm who you are. We only need your email <strong>or</strong> the phone number used when it was booked.</p>
+
+  <?php if (!$shipment && $tracking !== ''): ?>
+    <div class="pretrack-err">We could not find a shipment with tracking number <strong><?= hh($tracking) ?></strong>. Check the number and try again.</div>
+  <?php endif; ?>
+
+  <?php if ($shipment && !$hasContact): ?>
+    <div class="pretrack-note">ℹ️ This shipment has no registered email or phone, so it will open as <strong>Unverified</strong>.</div>
+  <?php endif; ?>
 
   <?php if (!empty($errors)): ?>
     <div class="pretrack-err">

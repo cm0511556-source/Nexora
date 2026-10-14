@@ -33,6 +33,18 @@ $held = (int) $db->query(
     "SELECT COUNT(*) FROM shipments WHERE status IN ('held', 'on_hold', 'delayed')"
 )->fetchColumn();
 
+$deliveredWeek = (int) $db->query(
+    "SELECT COUNT(*) FROM shipments WHERE status = 'delivered' AND updated_at >= datetime('now', '-7 day')"
+)->fetchColumn();
+
+$delayed = (int) $db->query(
+    "SELECT COUNT(*) FROM shipments WHERE status = 'delayed'"
+)->fetchColumn();
+
+$activeNow = (int) $db->query(
+    "SELECT COUNT(*) FROM shipments WHERE status IN ('in_transit', 'pending', 'on_hold', 'held', 'delayed')"
+)->fetchColumn();
+
 $recentShipments = $db->query(
     "SELECT
         id,
@@ -71,22 +83,32 @@ function statusLabel(string $status): string
 
 function transportIcon(string $type): string
 {
-    return match ($type) {
-        'flight' => '✈️',
-        'ship' => '🚢',
-        'train' => '🚆',
-        default => '🚚',
-    };
+    switch ($type) {
+        case 'flight':
+            return '✈️';
+        case 'ship':
+            return '🚢';
+        case 'train':
+            return '🚆';
+        default:
+            return '🚚';
+    }
 }
 
 function statusClass(string $status): string
 {
-    return match ($status) {
-        'delivered' => 'success',
-        'in_transit' => 'info',
-        'held', 'on_hold', 'delayed' => 'warning',
-        default => 'pending',
-    };
+    switch ($status) {
+        case 'delivered':
+            return 'success';
+        case 'in_transit':
+            return 'info';
+        case 'held':
+        case 'on_hold':
+        case 'delayed':
+            return 'warning';
+        default:
+            return 'pending';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -97,7 +119,7 @@ function statusClass(string $status): string
 
     <title>Nexora Logistics Admin Dashboard</title>
 
-    <link rel="stylesheet" href="/assets/css/app.css">
+    <link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 <style>
         * {
             box-sizing: border-box;
@@ -442,8 +464,8 @@ function statusClass(string $status): string
             }
         }
     </style>
-    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 
 <body>
@@ -472,6 +494,29 @@ function statusClass(string $status): string
     <section class="welcome" style="margin-top:24px;">
   <h2>Where do you want to go?</h2>
   <p>Each area groups the pages that belong together. Click any card.</p>
+</section>
+
+<section class="stats" style="margin-bottom:1.5rem;">
+  <div class="stat">
+    <div class="stat-top"><span class="stat-title">Total shipments</span><span class="stat-icon">📦</span></div>
+    <div class="stat-number"><?= $totalShipments ?></div>
+  </div>
+  <div class="stat">
+    <div class="stat-top"><span class="stat-title">Active now</span><span class="stat-icon">🚚</span></div>
+    <div class="stat-number"><?= $activeNow ?></div>
+  </div>
+  <div class="stat">
+    <div class="stat-top"><span class="stat-title">Delivered this week</span><span class="stat-icon">✅</span></div>
+    <div class="stat-number"><?= $deliveredWeek ?></div>
+  </div>
+  <div class="stat">
+    <div class="stat-top"><span class="stat-title">In transit</span><span class="stat-icon">✈️</span></div>
+    <div class="stat-number"><?= $inTransit ?></div>
+  </div>
+  <div class="stat">
+    <div class="stat-top"><span class="stat-title">Delayed / held</span><span class="stat-icon">⚠️</span></div>
+    <div class="stat-number"><?= max($delayed, $held) ?></div>
+  </div>
 </section>
 
 <style>

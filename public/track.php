@@ -1,34 +1,65 @@
 <?php
 declare(strict_types=1);
-session_start();
-$envFile = __DIR__ . '/../.env';
-if (file_exists($envFile)) {
-    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-        $line = trim($line);
-        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) continue;
-        [$name, $value] = explode('=', $line, 2);
-        $_ENV[trim($name)] = trim(trim($value), "\"'");
-    }
-}
-$appName = $_ENV['APP_NAME'] ?? 'Nexora Logistics';
-$mapboxToken = $_ENV['MAPBOX_TOKEN'] ?? '';
-$tracking = trim((string)($_GET['tracking'] ?? ''));
 
-// Customer must confirm details before seeing live tracking
-if ($tracking !== '' && !isset($_SESSION['nx_verified_lookups'][strtoupper($tracking)])) {
-    header('Location: /pre-track.php?tracking=' . urlencode($tracking));
-    exit;
+require_once dirname(__DIR__) . '/config/config.php';
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
 }
+
+$appName = (string) env('APP_NAME', 'Nexora Logistics');
+$mapStyle = nxMapStyleUrl();
+$tracking = nxTrackingFromRequest();
 $shipment = null;
+$tracker = null;
+$carrier = null;
+
 try {
-    $dbPath = dirname(__DIR__) . '/database/database.sqlite';
-    $pdo = new PDO('sqlite:' . $dbPath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+    $pdo = nxPdo();
     if ($tracking !== '') {
         $stmt = $pdo->prepare('SELECT * FROM shipments WHERE tracking_number = :t LIMIT 1');
         $stmt->execute([':t' => $tracking]);
         $shipment = $stmt->fetch() ?: null;
     }
-} catch (Throwable $e) { $shipment = null; }
+} catch (Throwable $e) {
+    $shipment = null;
+}
+
+$hasContact = $shipment
+    && (trim((string) $shipment['customer_email']) !== '' || trim((string) $shipment['customer_phone']) !== '');
+$isAdminPreview = nxIsAdminSession();
+
+// Customer must confirm details before seeing live tracking.
+// A signed-in admin may preview the page ("View as Customer") without the gate.
+if ($tracking !== '' && $shipment && $hasContact && !$isAdminPreview) {
+    $tracker = nxTrackerVerified($tracking);
+    if (!$tracker || (int) ($tracker['verified'] ?? 0) !== 1) {
+        header('Location: /pre-track.php?id=' . rawurlencode($tracking));
+        exit;
+    }
+}
+
+// Shipment with no contact on file — allowed, flagged Unverified.
+$isUnverified = ($shipment && !$isAdminPreview && (!$hasContact || ($tracker && (int) ($tracker['verified'] ?? 0) === 0))) ? true : false;
+
+// Assigned carrier (rendered "Handled by ..." for the customer).
+if ($shipment && !empty($shipment['carrier_id'])) {
+    try {
+        $cc = $pdo->prepare('SELECT id,name,code,logo_path,logo_url,contact_email,contact_phone,tracking_url FROM carriers WHERE id = :id AND is_active = 1 LIMIT 1');
+        $cc->execute([':id' => (int) $shipment['carrier_id']]);
+        $carrier = $cc->fetch() ?: null;
+        if ($carrier && !empty($carrier['logo_path'])) {
+            $carrier['logo_public'] = asset('carriers/' . basename($carrier['logo_path']));
+        } elseif ($carrier && !empty($carrier['logo_url'])) {
+            $carrier['logo_public'] = $carrier['logo_url'];
+        } else {
+            $carrier['logo_public'] = null;
+        }
+    } catch (Throwable $e) {
+        $carrier = null;
+    }
+}
+
 function h(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES); }
 function nxFmtDateServer(?string $v): string {
     if (!$v) return '—';
@@ -38,6 +69,7 @@ function nxFmtDateServer(?string $v): string {
     $s = preg_replace('/:\d{2}$/', '', $s);
     return substr($s, 0, 16);
 }
+$initialTracking = $tracking;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -48,8 +80,8 @@ function nxFmtDateServer(?string $v): string {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
+<link href="<?= asset('vendor/maplibre/maplibre-gl.css') ?>" rel="stylesheet">
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 <style>
   .map-wrap { width: 100%; }
   #map { height: clamp(360px, 55vh, 640px); border-radius: 14px; overflow: hidden; box-shadow: 0 8px 24px rgba(11,29,58,.18); }
@@ -95,8 +127,30 @@ function nxFmtDateServer(?string $v): string {
   .timeline-scroll::-webkit-scrollbar { width: 6px; }
   .timeline-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
   .timeline-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+  .nx-share-row { display:flex; gap:.6rem; flex-wrap:wrap; margin-top:1rem; }
+  .nx-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.6rem 1rem; border-radius:10px; border:1px solid #cbd5e1; background:#fff; color:#0b1d3a; font-family:inherit; font-weight:600; font-size:.88rem; cursor:pointer; text-decoration:none; }
+  .nx-btn:hover { background:#0b1d3a; color:#fff; }
+  .nx-btn.primary { background:linear-gradient(135deg,#f0b429,#ffd166); border:0; color:#0b1d3a; }
+  .nx-qr { margin-top:1rem; display:none; text-align:center; }
+  .nx-qr img, .nx-qr canvas { background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; }
+  .unverified-banner { padding:.9rem 1.1rem; border-radius:12px; margin-bottom:1rem; background:rgba(245,158,11,.12); border-left:4px solid #f59e0b; color:#92400e; font-size:.9rem; }
+  .nx-chat { position:fixed; right:18px; bottom:18px; z-index:9500; font-family:inherit; }
+  .nx-chat-toggle { width:56px; height:56px; border-radius:50%; border:0; background:linear-gradient(135deg,#0b1d3a,#132a52); color:#ffd166; font-size:24px; cursor:pointer; box-shadow:0 8px 24px rgba(11,29,58,.35); }
+  .nx-chat-panel { display:none; position:absolute; right:0; bottom:68px; width:min(340px,86vw); height:440px; background:#fff; border-radius:14px; box-shadow:0 18px 50px rgba(11,29,58,.3); border:1px solid #e2e8f0; flex-direction:column; overflow:hidden; }
+  .nx-chat-panel.open { display:flex; }
+  .nx-chat-head { background:#0b1d3a; color:#fff; padding:.8rem 1rem; font-weight:700; font-size:.9rem; display:flex; justify-content:space-between; align-items:center; }
+  .nx-chat-body { flex:1; overflow-y:auto; padding:.85rem; background:#f8fafc; font-size:.86rem; }
+  .nx-chat-msg { margin-bottom:.6rem; padding:.55rem .75rem; border-radius:10px; max-width:85%; line-height:1.45; white-space:pre-wrap; }
+  .nx-chat-msg.bot { background:#fff; border:1px solid #e2e8f0; color:#0b1d3a; }
+  .nx-chat-msg.user { background:#2563eb; color:#fff; margin-left:auto; }
+  .nx-chat-form { display:flex; border-top:1px solid #e2e8f0; }
+  .nx-chat-form input { flex:1; border:0; padding:.7rem .85rem; font-family:inherit; font-size:.86rem; outline:none; }
+  .nx-chat-form button { border:0; background:#f0b429; color:#0b1d3a; font-weight:700; padding:0 1rem; cursor:pointer; font-family:inherit; }
 </style>
-    <script src="/assets/js/nx-labels.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#0b1d3a">
+    <link rel="icon" href="<?= asset('images/icon.svg') ?>" type="image/svg+xml">
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
 </head>
 <body>
 <div id="nx-errbox" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#7f1d1d;color:#fff;padding:8px 12px;font-size:.78rem;z-index:99999;max-height:140px;overflow:auto;font-family:monospace;"></div>
@@ -141,16 +195,26 @@ window.addEventListener('unhandledrejection',function(e){var b=document.getEleme
 
     <div id="hold-banner" class="hold-banner" style="display:none;"></div>
 
+    <?php if ($isAdminPreview): ?>
+    <div class="unverified-banner" style="background:rgba(37,99,235,.1);border-left-color:#2563eb;color:#1e40af;">👁️ <strong>Admin preview</strong> — viewing this shipment exactly as the customer sees it.</div>
+    <?php endif; ?>
+
+    <?php if ($isUnverified): ?>
+    <div class="unverified-banner">⚠️ <strong>Unverified shipment.</strong> This tracking number has no registered email or phone, so we could not confirm your identity.</div>
+    <?php endif; ?>
+
     <div class="map-wrap">
-        <div id="nx-map-loading" class="nx-map-loading"><div class="spinner"></div><div class="msg">🌍 Initialising live map…</div><div class="sub">Loading real-time satellite imagery and shipment position</div></div>
+        <div id="nx-map-loading" class="nx-map-loading"><div class="spinner"></div><div class="msg">🌍 Initialising live map…</div><div class="sub">Loading real-time map and shipment position</div></div>
         <div id="map"></div>
         <div class="map-hud">
             <div><span class="val" id="hud-veh">—</span> <span id="hud-mode">en route</span></div>
+            <div class="row">⏱️ <span id="hud-eta">Calculating…</span></div>
             <div class="row">📍 <span id="hud-temp">— °C</span> · <span id="hud-cond">—</span></div>
             <div class="row">🕒 <span id="hud-local">—</span> local time</div>
             <div class="row">🌗 <span id="hud-daynight">—</span></div>
         </div>
         <button type="button" id="nx-amb-btn" class="nx-amb-btn" title="Toggle other traffic on the map">🌍 Ambient: ON</button>
+        <button type="button" id="nx-follow-btn" class="nx-amb-btn" style="top:52px;right:12px;" title="Keep the camera locked on your shipment">🎯 Follow</button>
         <button type="button" id="nx-fs-btn" class="nx-amb-btn" style="top:auto;bottom:12px;right:12px;">⛶ Fullscreen</button>
     </div>
     <p class="caption">Position estimated from route schedule and shipment progress · updated live every few seconds.</p>
@@ -189,7 +253,34 @@ window.addEventListener('unhandledrejection',function(e){var b=document.getEleme
             <div><div style="font-size:.75rem;opacity:.7;text-transform:uppercase;">Transport</div><div style="font-weight:600;text-transform:capitalize;"><?= h($shipment['transport_type']) ?><?= $shipment['vehicle_name'] ? ' · ' . h($shipment['vehicle_name']) : '' ?></div></div>
             <div><div style="font-size:.75rem;opacity:.7;text-transform:uppercase;">Estimated delivery</div><div style="font-weight:600;" id="eta-val"><?= h(nxFmtDateServer($shipment['estimated_delivery'] ?: ($shipment['eta'] ?: ''))) ?></div></div>
             <div><div style="font-size:.75rem;opacity:.7;text-transform:uppercase;">Last update</div><div style="font-weight:600;" id="last-update"><?= h(nxFmtDateServer($shipment['last_update'] ?: $shipment['updated_at'])) ?></div></div>
+            <div><div style="font-size:.75rem;opacity:.7;text-transform:uppercase;">Live ETA</div><div style="font-weight:600;" id="eta-live">Calculating…</div></div>
         </div>
+
+        <?php if ($carrier): ?>
+        <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid #eef2f7;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+            <?php if (!empty($carrier['logo_public'])): ?><img src="<?= h($carrier['logo_public']) ?>" alt="" style="height:34px;max-width:120px;object-fit:contain;"><?php endif; ?>
+            <div>
+                <div style="font-size:.75rem;opacity:.7;text-transform:uppercase;letter-spacing:.05em;">Handled by</div>
+                <div style="font-weight:700;">
+                    <?= h($carrier['name']) ?>
+                    <?php if (!empty($carrier['tracking_url'])): ?>
+                        · <a href="<?= h($carrier['tracking_url']) ?>" target="_blank" rel="noopener" style="font-size:.82rem;">carrier tracking</a>
+                    <?php endif; ?>
+                    <?php if (!empty($carrier['contact_phone'])): ?>
+                        · <a href="tel:<?= h($carrier['contact_phone']) ?>" style="font-size:.82rem;"><?= h($carrier['contact_phone']) ?></a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <div class="nx-share-row">
+            <button type="button" class="nx-btn primary" id="nx-copy-link">🔗 Copy Tracking Link</button>
+            <button type="button" class="nx-btn" id="nx-qr-btn">📱 Show QR Code</button>
+            <a class="nx-btn" id="nx-receipt-link" href="/receipt.php?id=<?= h(rawurlencode($shipment['tracking_number'])) ?>" target="_blank" rel="noopener">🧾 Print / Download Receipt</a>
+            <button type="button" class="nx-btn" id="nx-replay-btn">▶ Replay Journey</button>
+        </div>
+        <div class="nx-qr" id="nx-qr-box"><div id="nx-qr-target"></div><p style="font-size:.78rem;color:#64748b;margin:.5rem 0 0;">Scan to open this shipment on another device.</p></div>
     </section>
 
     <section class="card" style="padding:1.75rem;margin-top:1.25rem;">
@@ -200,12 +291,27 @@ window.addEventListener('unhandledrejection',function(e){var b=document.getEleme
             <span id="pct-val">—%</span>
             <span id="km-rem">— km remaining</span>
         </div>
+        <p style="margin:.75rem 0 0;font-weight:700;color:#0b1d3a;" id="eta-live-2">⏱️ Calculating arrival…</p>
+    </section>
+
+    <section class="card" id="nx-proof-card" style="padding:1.75rem;margin-top:1.25rem;display:none;">
+        <h3 style="margin-top:0;">✅ Proof of delivery</h3>
+        <div id="nx-proof-body" style="display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));"></div>
     </section>
 
     <section class="card" style="padding:1.75rem;margin-top:1.25rem;">
         <h3 style="margin-top:0;">Tracking timeline</h3>
         <div class="timeline-scroll"><ol class="timeline" id="timeline"><li style="opacity:.6;">Loading events…</li></ol></div>
     </section>
+
+    <div class="nx-chat" id="nx-chat">
+        <div class="nx-chat-panel" id="nx-chat-panel">
+            <div class="nx-chat-head"><span>🤖 Nexora Assistant</span><button type="button" id="nx-chat-close" style="background:none;border:0;color:#fff;font-size:18px;cursor:pointer;">×</button></div>
+            <div class="nx-chat-body" id="nx-chat-body"><div class="nx-chat-msg bot">Hi! Ask me about this shipment — status, route, ETA or how to get updates.</div></div>
+            <form class="nx-chat-form" id="nx-chat-form"><input type="text" id="nx-chat-input" placeholder="Ask about your shipment…" autocomplete="off"><button type="submit">Send</button></form>
+        </div>
+        <button type="button" class="nx-chat-toggle" id="nx-chat-toggle" title="Chat about this shipment">💬</button>
+    </div>
 
 <?php endif; ?>
 </main>
@@ -215,9 +321,10 @@ window.addEventListener('unhandledrejection',function(e){var b=document.getEleme
 </footer>
 
 <?php if ($shipment): ?>
-<script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+<script src="<?= asset('vendor/maplibre/maplibre-gl.js') ?>"></script>
+<script src="<?= asset('js/nx-map.js') ?>"></script>
+<script src="<?= asset('js/qrcode.min.js') ?>"></script>
 <script>
-mapboxgl.accessToken = <?= json_encode($mapboxToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 (function(){
 'use strict';
 function nxFmtDate(v){
@@ -229,18 +336,17 @@ function nxFmtDate(v){
 const TRACKING = <?= json_encode($shipment['tracking_number'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 const API = '/track-api.php?tracking=' + encodeURIComponent(TRACKING);
 
-const map = new mapboxgl.Map({
-  container: 'map',
-  style: 'mapbox://styles/mapbox/satellite-streets-v12',
+const map = nxCreateMap('map', <?= json_encode($mapStyle, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, {
   center: [-40, 40], zoom: 3, attributionControl: { compact: true }
 });
-map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-left');
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
 
 const segColors = { air:'#f0b429', sea:'#2563eb', rail:'#16a34a', road:'#94a3b8', bike:'#ec4899', last_mile:'#7c3aed', route:'#cbd5e1' };
 const segIcons  = { air:'✈️', sea:'🚢', rail:'🚆', road:'🚚', bike:'🏍️', last_mile:'📦', route:'🚚' };
 const wpIcons   = { origin:'🟢', destination:'🎯', airport:'✈️', port:'⚓', rail_hub:'🚉', warehouse:'🏬', office:'🏢', checkpoint:'🛡️', waypoint:'📍' };
 
 let vehMarker = null, wpMarkers = [], ambientMarkers = [], ambientTimer = null, ambientOn = true, fitDone = false;
+let followOn = false, segmentMsgs = {}, lastRouteCache = [], ambientMult = 1;
 
 function toGeoJSON(route) {
   const features = []; let bucket = [route[0]];
@@ -252,16 +358,34 @@ function toGeoJSON(route) {
   return { type:'FeatureCollection', features };
 }
 function makeFeature(pts) {
-  return { type:'Feature', properties:{ color: segColors[pts[0].segment_type] || segColors.route },
+  return { type:'Feature', properties:{ color: segColors[pts[0].segment_type] || segColors.route, seg: pts[0].segment_type || 'route' },
     geometry:{ type:'LineString', coordinates: pts.map(p => [parseFloat(p.longitude), parseFloat(p.latitude)]) } };
 }
 function renderRoute(route) {
+  lastRouteCache = route || [];
   const gj = toGeoJSON(route); const src = map.getSource('nx-route');
   if (src) { src.setData(gj); return; }
   map.addSource('nx-route', { type:'geojson', data: gj });
   map.addLayer({ id:'nx-route-line', type:'line', source:'nx-route',
     layout:{ 'line-cap':'round', 'line-join':'round' },
     paint:{ 'line-color':['get','color'], 'line-width':3, 'line-opacity':0.9, 'line-dasharray':[2,1.5] } });
+  map.on('click', 'nx-route-line', function(ev){
+    try {
+      const f = ev.features && ev.features[0];
+      const seg = f && f.properties ? f.properties.seg : null;
+      const msg = seg ? segmentMsgs[seg] : null;
+      if (!msg) return;
+      new maplibregl.Popup({ offset: 12, closeButton: true })
+        .setLngLat(ev.lngLat)
+        .setHTML('<div style="font-family:Plus Jakarta Sans,system-ui,sans-serif;min-width:200px;line-height:1.5;">' +
+          '<b style="color:#0b1d3a;">' + esc((msg.icon ? msg.icon + ' ' : '') + (msg.public_title || seg)) + '</b>' +
+          (msg.public_description ? '<div style="color:#475467;font-size:.85rem;margin-top:4px;">' + esc(msg.public_description) + '</div>' : '') +
+          '</div>')
+        .addTo(map);
+    } catch(e) {}
+  });
+  map.on('mouseenter', 'nx-route-line', function(){ map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'nx-route-line', function(){ map.getCanvas().style.cursor = ''; });
 }
 function pickIcon(lat, lng, route, fallbackEmoji) {
   if (route && route.length) {
@@ -304,12 +428,15 @@ function setVehicle(lat, lng, heading, route, fallbackEmoji, state) {
   if (!vehMarker) {
     const el = document.createElement('div');
     el.innerHTML = html;
-    vehMarker = new mapboxgl.Marker({ element: el, anchor:'center' }).setLngLat([lng, lat]).addTo(map);
-    window.__nxVehPopup = new mapboxgl.Popup({ offset: 40, closeButton: true });
+    vehMarker = new maplibregl.Marker({ element: el, anchor:'center' }).setLngLat([lng, lat]).addTo(map);
+    window.__nxVehPopup = new maplibregl.Popup({ offset: 40, closeButton: true });
     vehMarker.setPopup(window.__nxVehPopup);
   } else {
     vehMarker.setLngLat([lng, lat]);
     vehMarker.getElement().innerHTML = html;
+  }
+  if (followOn) {
+    try { map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 5), duration: 900 }); } catch(e) {}
   }
   try {
     const s = window.__nxLastShipment || {};
@@ -337,8 +464,8 @@ function renderWaypoints(wps) {
     const el = document.createElement('div');
     const labelTxt = w.public_label && String(w.public_label).trim() !== '' ? w.public_label : w.name;
     el.innerHTML = '<div style="font-size:20px;text-align:center;">'+(wpIcons[w.waypoint_type]||'📍')+'</div><div class="nx-wp">'+esc(labelTxt)+'</div>';
-    const m = new mapboxgl.Marker({ element: el, anchor:'bottom' }).setLngLat([parseFloat(w.longitude), parseFloat(w.latitude)]).addTo(map);
-    m.setPopup(new mapboxgl.Popup({ offset: 20 }).setHTML('<b>'+esc(w.name)+'</b>'+(w.address?'<br>'+esc(w.address):'')+'<br><small style="color:#64748b;">'+esc(w.public_note||w.waypoint_type||'')+'</small>'));
+    const m = new maplibregl.Marker({ element: el, anchor:'bottom' }).setLngLat([parseFloat(w.longitude), parseFloat(w.latitude)]).addTo(map);
+    m.setPopup(new maplibregl.Popup({ offset: 20 }).setHTML('<b>'+esc(w.name)+'</b>'+(w.address?'<br>'+esc(w.address):'')+'<br><small style="color:#64748b;">'+esc(w.public_note||w.waypoint_type||'')+'</small>'));
     wpMarkers.push(m);
   });
 }
@@ -405,6 +532,7 @@ function randPair(a){ const x=a[Math.floor(Math.random()*a.length)]; let y=a[Mat
 function arc(a,b,n){ const pts=[]; const bulge=Math.min(20,Math.abs(b[2]-a[2])*0.18); for(let i=0;i<=n;i++){ const t=i/n; pts.push([a[1]+(b[1]-a[1])*t+Math.sin(Math.PI*t)*bulge*0.15, a[2]+(b[2]-a[2])*t]); } return pts; }
 function buildAmbient() {
   ambientMarkers.forEach(m => m.m.remove()); ambientMarkers = [];
+  if (ambientMult <= 0) return;
   const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   const planes = rand(14, 22);
   const ships  = rand(7, 12);
@@ -416,7 +544,7 @@ function buildAmbient() {
     el.style.cssText = 'cursor:pointer;filter:drop-shadow(0 0 4px rgba(148,163,184,.8));';
     el.innerHTML = '<span class="nx-amb-ico" style="display:inline-block;font-size:' + size + 'px;line-height:1;">' + emoji + '</span>';
     const t = Math.random() * (pts.length - 1);
-    const m = new mapboxgl.Marker({ element: el, anchor:'center' }).setLngLat([pts[Math.floor(t)][1], pts[Math.floor(t)][0]]).addTo(map);
+    const m = new maplibregl.Marker({ element: el, anchor:'center' }).setLngLat([pts[Math.floor(t)][1], pts[Math.floor(t)][0]]).addTo(map);
     const info = {
       plane: { title: 'Commercial aircraft', text: 'Other air traffic — not your shipment.' },
       ship:  { title: 'Cargo vessel',         text: 'Other sea traffic — not your shipment.' },
@@ -424,7 +552,7 @@ function buildAmbient() {
       train: { title: 'Rail service',         text: 'Local rail traffic.' },
       ped:   { title: 'Pedestrian',           text: 'Foot traffic.' }
     }[kind] || { title: kind, text: 'Ambient activity.' };
-    m.setPopup(new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML(
+    m.setPopup(new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
       '<div style="font-family:Plus Jakarta Sans,system-ui,sans-serif;font-size:.85rem;line-height:1.4;">' +
         '<b style="color:#0b1d3a;">' + info.title + '</b><br>' +
         '<span style="color:#64748b;font-size:.78rem;">' + info.text + '</span>' +
@@ -432,10 +560,10 @@ function buildAmbient() {
     ));
     ambientMarkers.push({ m, pts, t, speed, kind });
   };
-  for (let i = 0; i < planes; i++) { const [a,b] = randPair(AIR_HUBS); push(arc(a,b,36), '✈️', 16, SP.plane * (0.7 + Math.random()*0.6), 'plane'); }
-  for (let i = 0; i < ships;  i++) { const [a,b] = randPair(SEA_HUBS); push(arc(a,b,36), '🚢', 17, SP.ship * (0.7 + Math.random()*0.6), 'ship'); }
-  for (let i = 0; i < road;   i++) { const [a] = randPair(AIR_HUBS); const isTrain = i % 3 === 0; push([[a[1],a[2]],[a[1]+(Math.random()-.5)*3,a[2]+(Math.random()-.5)*3]], isTrain ? '🚆' : '🚗', 15, (isTrain?SP.train:SP.car) * (0.7 + Math.random()*0.6), isTrain ? 'train' : 'car'); }
-  for (let i = 0; i < peds;   i++) { const [a] = randPair(AIR_HUBS); push([[a[1],a[2]],[a[1]+(Math.random()-.5)*0.4,a[2]+(Math.random()-.5)*0.4]], '🚶', 12, SP.ped * (0.7 + Math.random()*0.6), 'ped'); }
+  for (let i = 0; i < planes; i++) { const [a,b] = randPair(AIR_HUBS); push(arc(a,b,36), '✈️', 16, SP.plane * ambientMult * (0.7 + Math.random()*0.6), 'plane'); }
+  for (let i = 0; i < ships;  i++) { const [a,b] = randPair(SEA_HUBS); push(arc(a,b,36), '🚢', 17, SP.ship * ambientMult * (0.7 + Math.random()*0.6), 'ship'); }
+  for (let i = 0; i < road;   i++) { const [a] = randPair(AIR_HUBS); const isTrain = i % 3 === 0; push([[a[1],a[2]],[a[1]+(Math.random()-.5)*3,a[2]+(Math.random()-.5)*3]], isTrain ? '🚆' : '🚗', 15, (isTrain?SP.train:SP.car) * ambientMult * (0.7 + Math.random()*0.6), isTrain ? 'train' : 'car'); }
+  for (let i = 0; i < peds;   i++) { const [a] = randPair(AIR_HUBS); push([[a[1],a[2]],[a[1]+(Math.random()-.5)*0.4,a[2]+(Math.random()-.5)*0.4]], '🚶', 12, SP.ped * ambientMult * (0.7 + Math.random()*0.6), 'ped'); }
 }
 function tickAmbient() {
   if (!ambientOn) return;
@@ -475,7 +603,7 @@ function renderMediaStrip(items) {
   renderMediaStrip._sig = sig; mediaItems = items;
   mediaStrip.style.display = '';
   mediaGrid.innerHTML = items.map((m, i) => {
-    const src = '/assets/media/' + encodeURIComponent(m.file_path);
+    const src = '<?= asset('media/') ?>' + encodeURIComponent(m.file_path);
     const thumb = m.media_type === 'photo'
       ? '<img src="'+src+'" alt="" style="width:100%;height:110px;object-fit:cover;border-radius:8px;cursor:pointer;background:#e2e8f0;">'
       : '<div style="position:relative;width:100%;height:110px;border-radius:8px;overflow:hidden;cursor:pointer;background:#0b1d3a;"><video src="'+src+'" muted playsinline style="width:100%;height:100%;object-fit:cover;"></video><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(11,29,58,.35);color:#fff;font-size:28px;">▶</div></div>';
@@ -487,7 +615,7 @@ function renderMediaStrip(items) {
 function openLB(i) {
   if (!mediaItems.length) return;
   mediaIdx = (i + mediaItems.length) % mediaItems.length;
-  const m = mediaItems[mediaIdx], src = '/assets/media/' + encodeURIComponent(m.file_path);
+  const m = mediaItems[mediaIdx], src = '<?= asset('media/') ?>' + encodeURIComponent(m.file_path);
   const b = document.getElementById('nx-lb-body');
   b.innerHTML = m.media_type === 'photo' ? '<img src="'+src+'" style="max-width:100%;max-height:85vh;border-radius:10px;">' : '<video src="'+src+'" controls autoplay style="max-width:100%;max-height:85vh;border-radius:10px;"></video>';
   document.getElementById('nx-lb-caption').textContent = m.caption || '';
@@ -565,13 +693,13 @@ function nxDrawOriginDestination(s) {
   if (s.origin_lat || s.origin_lng) {
     const el = document.createElement('div');
     el.innerHTML = '<div style="font-size:22px;text-align:center;">' + oIcon + '</div><div style="background:#0b1d3a;color:#fff;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap;margin-top:2px;">' + (s.origin||'Origin') + '</div>';
-    const m = new mapboxgl.Marker({ element: el, anchor:'bottom' }).setLngLat([s.origin_lng, s.origin_lat]).addTo(map);
+    const m = new maplibregl.Marker({ element: el, anchor:'bottom' }).setLngLat([s.origin_lng, s.origin_lat]).addTo(map);
     nxODMarkers.push(m);
   }
   if (s.destination_lat || s.destination_lng) {
     const el = document.createElement('div');
     el.innerHTML = '<div style="font-size:22px;text-align:center;">' + dIcon + '</div><div style="background:#f0b429;color:#0b1d3a;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap;margin-top:2px;">' + (s.destination||'Destination') + '</div>';
-    const m = new mapboxgl.Marker({ element: el, anchor:'bottom' }).setLngLat([s.destination_lng, s.destination_lat]).addTo(map);
+    const m = new maplibregl.Marker({ element: el, anchor:'bottom' }).setLngLat([s.destination_lng, s.destination_lat]).addTo(map);
     nxODMarkers.push(m);
   }
 }
@@ -612,6 +740,12 @@ async function tick() {
     if (j.status !== 'success') return;
     const s = j.shipment, route = j.route || [];
     window.__nxLastShipment = s;
+    window.__nxLastApi = j;
+    segmentMsgs = j.segment_messages || {};
+    if (j.settings && typeof j.settings.ambient_speed === 'number') {
+      ambientMult = j.settings.ambient_speed;
+      if (ambientMult <= 0 && ambientTimer) { ambientOn = false; stopAmbient(); const ab = document.getElementById('nx-amb-btn'); if (ab) ab.textContent = '🌍 Ambient: OFF'; }
+    }
 
     // Route + waypoints (isolated so a failure doesn't block the rest)
     try {
@@ -639,12 +773,20 @@ async function tick() {
       document.getElementById('last-update').textContent = nxFmtDate(s.last_update || s.updated_at);
       document.getElementById('hud-veh').textContent = s.vehicle_name || s.transport_type || 'shipment';
       document.getElementById('hud-mode').textContent = (j.mandatory_hold ? 'on hold' : (j.control && j.control.is_running ? 'en route' : 'not moving'));
+      const etaTxt = s.eta_text || '—';
+      const etaEl = document.getElementById('eta-live');
+      const etaEl2 = document.getElementById('eta-live-2');
+      const hudEta = document.getElementById('hud-eta');
+      if (etaEl) etaEl.textContent = etaTxt;
+      if (etaEl2) etaEl2.textContent = '⏱️ ' + etaTxt;
+      if (hudEta) hudEta.textContent = etaTxt;
     } catch(e) { console.warn('hud error', e); }
 
-    // Holds + timeline + media
+    // Holds + timeline + media + proof of delivery
     try { renderHolds(j); } catch(e) { console.warn('holds error', e); }
     try { renderTimeline(j.events || []); } catch(e) { console.warn('timeline error', e); }
     try { renderMediaStrip(j.media || []); } catch(e) { console.warn('media error', e); }
+    try { renderProof(j.proof); } catch(e) { console.warn('proof error', e); }
 
     // Weather every 60s
     try {
@@ -657,7 +799,7 @@ async function tick() {
     // Fit bounds once
     try {
       if (!fitDone && (s.origin_lat || s.destination_lat)) {
-        const b = new mapboxgl.LngLatBounds();
+        const b = new maplibregl.LngLatBounds();
         b.extend([s.origin_lng, s.origin_lat]);
         b.extend([s.destination_lng, s.destination_lat]);
         b.extend([s.current_lng, s.current_lat]);
@@ -707,7 +849,7 @@ function nxNightGeo() {
     }
     const darkPole = decl > 0 ? -90 : 90;
     coords.push([180, darkPole], [-180, darkPole], [-180, coords[0][1]]);
-    // Reverse winding so the polygon fill is on the night side (Mapbox right-hand rule)
+    // Reverse winding so the polygon fill is on the night side (MapLibre right-hand rule)
     coords.reverse();
   }
   return { type:'Feature', geometry:{ type:'Polygon', coordinates:[coords] } };
@@ -743,7 +885,158 @@ if (typeof window !== 'undefined' && !window.__nxResizeHooked) {
   window.addEventListener('resize', function(){ try { map.resize(); } catch(e){} });
   document.addEventListener('visibilitychange', function(){ if (!document.hidden) { setTimeout(function(){ try { map.resize(); } catch(e){} }, 200); } });
 }
-map.on('load', () => { setTimeout(() => { try { map.resize(); } catch(e){} }, 300); setTimeout(nxHideLoading, 800); tick(); setInterval(tick, 8000); setTimeout(() => { if (ambientOn) startAmbient(); }, 1200); });
+// ---- Surface map resource errors instead of a silent blank canvas ----
+map.on('error', function(e){
+  var msg = (e && e.error && e.error.message) ? e.error.message : 'basemap resource could not load';
+  var box = document.getElementById('nx-errbox');
+  if (box) { box.style.display = 'block'; box.textContent = 'Map: ' + msg; }
+});
+
+// ---- Proof of delivery ----
+function renderProof(p) {
+  var card = document.getElementById('nx-proof-card');
+  if (!card) return;
+  if (!p || (!p.photo_url && !p.signature_url)) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  var html = '';
+  if (p.photo_url) html += '<figure style="margin:0;"><img src="' + p.photo_url + '" alt="Delivery evidence" style="width:100%;border-radius:10px;"><figcaption style="font-size:.78rem;color:#64748b;margin-top:.35rem;">Delivery photo</figcaption></figure>';
+  if (p.signature_url) html += '<figure style="margin:0;"><img src="' + p.signature_url + '" alt="Signature" style="width:100%;background:#fff;border-radius:10px;border:1px solid #e2e8f0;"><figcaption style="font-size:.78rem;color:#64748b;margin-top:.35rem;">Recipient signature</figcaption></figure>';
+  html += '<div style="font-size:.9rem;">' + (p.signed_by ? '<div><b>Signed by:</b> ' + esc(p.signed_by) + '</div>' : '') + (p.delivered_at ? '<div><b>Delivered:</b> ' + esc(p.delivered_at) + '</div>' : '') + (p.note ? '<div style="margin-top:.35rem;">' + esc(p.note) + '</div>' : '') + '</div>';
+  document.getElementById('nx-proof-body').innerHTML = html;
+}
+
+// ---- Replay journey ----
+let replayMarker = null, replayTimer = null;
+function nxReplayJourney() {
+  var pts = (window.__nxLastApi && window.__nxLastApi.positions) || [];
+  var btn = document.getElementById('nx-replay-btn');
+  if (replayTimer) { clearInterval(replayTimer); replayTimer = null; }
+  if (replayMarker) { replayMarker.remove(); replayMarker = null; }
+  if (pts.length < 2) { if (btn) btn.textContent = '▶ Replay Journey'; alert('Not enough journey history to replay yet.'); return; }
+  var i = 0;
+  if (!map.getSource('nx-replay')) {
+    map.addSource('nx-replay', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } } });
+    map.addLayer({ id: 'nx-replay-line', type: 'line', source: 'nx-replay', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#f0b429', 'line-width': 4, 'line-opacity': 0.95 } });
+  } else {
+    try { map.getSource('nx-replay').setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } }); } catch(e) {}
+  }
+  var el = document.createElement('div');
+  el.style.cssText = 'font-size:22px;filter:drop-shadow(0 0 6px #f0b429);';
+  el.textContent = '🚚';
+  replayMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([parseFloat(pts[0].longitude), parseFloat(pts[0].latitude)]).addTo(map);
+  var coords = [];
+  if (btn) btn.textContent = '⏹ Stop replay';
+  replayTimer = setInterval(function () {
+    if (i >= pts.length) {
+      clearInterval(replayTimer); replayTimer = null;
+      if (btn) btn.textContent = '▶ Replay Journey';
+      return;
+    }
+    var p = pts[i];
+    coords.push([parseFloat(p.longitude), parseFloat(p.latitude)]);
+    try { map.getSource('nx-replay').setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }); } catch(e) {}
+    replayMarker.setLngLat([parseFloat(p.longitude), parseFloat(p.latitude)]);
+    i++;
+  }, 130);
+}
+
+// ---- Follow camera ----
+var followBtn = document.getElementById('nx-follow-btn');
+if (followBtn) followBtn.addEventListener('click', function () {
+  followOn = !followOn;
+  followBtn.textContent = followOn ? '🎯 Following' : '🎯 Follow';
+  followBtn.style.background = followOn ? 'rgba(240,180,41,.95)' : 'rgba(11,29,58,.85)';
+  followBtn.style.color = followOn ? '#0b1d3a' : '#fff';
+  if (followOn && window.__nxLastShipment) {
+    var s = window.__nxLastShipment;
+    try { map.easeTo({ center: [s.current_lng, s.current_lat], zoom: Math.max(map.getZoom(), 5), duration: 900 }); } catch(e) {}
+  }
+});
+
+// Expose a tiny API for the sharing / replay / chat script below.
+window.__nxMap = map;
+window.__nxReplayJourney = nxReplayJourney;
+window.__nxApiData = function () { return window.__nxLastApi || {}; };
+
+map.on('load', () => { setTimeout(() => { try { map.resize(); } catch(e){} }, 300); setTimeout(nxHideLoading, 800); tick(); setInterval(tick, 8000); setTimeout(() => { if (ambientOn && ambientMult > 0) startAmbient(); }, 1200); });
+})();
+</script>
+
+<script>
+/* Sharing, QR, replay trigger, assistant and PWA registration */
+(function(){
+  'use strict';
+  var TRACKING = <?= json_encode($shipment['tracking_number'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+  var trackUrl = location.origin + '/track.php?id=' + encodeURIComponent(TRACKING);
+
+  var copyBtn = document.getElementById('nx-copy-link');
+  if (copyBtn) copyBtn.addEventListener('click', function () {
+    function done(){ copyBtn.textContent = '✅ Link copied'; setTimeout(function(){ copyBtn.textContent = '🔗 Copy Tracking Link'; }, 1800); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(trackUrl).then(done, function(){ window.prompt('Copy this tracking link:', trackUrl); });
+    } else {
+      window.prompt('Copy this tracking link:', trackUrl);
+    }
+  });
+
+  var qrBtn = document.getElementById('nx-qr-btn');
+  var qrBox = document.getElementById('nx-qr-box');
+  var qrDone = false;
+  if (qrBtn && qrBox) qrBtn.addEventListener('click', function () {
+    var show = qrBox.style.display !== 'block';
+    qrBox.style.display = show ? 'block' : 'none';
+    if (show && !qrDone && typeof QRCode !== 'undefined') {
+      new QRCode(document.getElementById('nx-qr-target'), { text: trackUrl, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
+      qrDone = true;
+    }
+    qrBtn.textContent = show ? '📱 Hide QR Code' : '📱 Show QR Code';
+  });
+
+  var replayBtn = document.getElementById('nx-replay-btn');
+  if (replayBtn) replayBtn.addEventListener('click', function () {
+    if (typeof window.__nxReplayJourney === 'function') window.__nxReplayJourney();
+  });
+
+  // ---- Assistant ----
+  var toggle = document.getElementById('nx-chat-toggle');
+  var panel = document.getElementById('nx-chat-panel');
+  var closeBtn = document.getElementById('nx-chat-close');
+  var form = document.getElementById('nx-chat-form');
+  var input = document.getElementById('nx-chat-input');
+  var body = document.getElementById('nx-chat-body');
+  if (toggle && panel) {
+    toggle.addEventListener('click', function () { panel.classList.toggle('open'); if (panel.classList.contains('open') && input) input.focus(); });
+    if (closeBtn) closeBtn.addEventListener('click', function () { panel.classList.remove('open'); });
+  }
+  function addMsg(text, cls) {
+    var d = document.createElement('div');
+    d.className = 'nx-chat-msg ' + cls;
+    d.textContent = text;
+    if (body) { body.appendChild(d); body.scrollTop = body.scrollHeight; }
+  }
+  if (form) form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var msg = (input.value || '').trim();
+    if (!msg) return;
+    addMsg(msg, 'user');
+    input.value = '';
+    addMsg('…', 'bot');
+    var pending = body.lastChild;
+    fetch('/api/chat.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tracking: TRACKING, message: msg })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      pending.textContent = (j && j.reply) ? j.reply : 'Sorry, I could not answer that right now.';
+      body.scrollTop = body.scrollHeight;
+    }).catch(function () {
+      pending.textContent = 'Sorry, the assistant is unavailable right now.';
+    });
+  });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js').catch(function () {});
+  }
 })();
 </script>
 <?php endif; ?>

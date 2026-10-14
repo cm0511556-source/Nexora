@@ -8,13 +8,14 @@ Auth::requireAdmin();
 $db = Database::connection();
 $lookups = (int)$db->query('SELECT COUNT(*) FROM tracking_lookups')->fetchColumn();
 $reviews = (int)$db->query('SELECT COUNT(*) FROM testimonials')->fetchColumn();
+$customers = (int)$db->query('SELECT COUNT(*) FROM customers')->fetchColumn();
 function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES); }
 ?>
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>People — Nexora Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 <style>
 body{background:#f1f5f9}.wrap{max-width:900px;margin:0 auto;padding:1rem}
 .tile-grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
@@ -24,8 +25,8 @@ body{background:#f1f5f9}.wrap{max-width:900px;margin:0 auto;padding:1rem}
 .tile-title{font-weight:800;color:#0b1d3a;font-size:1.1rem;margin:0 0 .35rem}
 .tile-desc{color:#5b6b85;font-size:.92rem;margin:0}
 .tile-count{display:inline-block;margin-top:.75rem;background:rgba(240,180,41,.15);color:#854d0e;padding:.2rem .6rem;border-radius:999px;font-size:.78rem;font-weight:700}
-</style>    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+</style>    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head><body>
 <header class="navbar">
   <a href="/admin/index.php" class="logo" style="text-decoration:none;color:inherit;"><span class="logo-badge">N</span><span class="logo-text">Nexora Admin</span></a>
@@ -43,6 +44,12 @@ body{background:#f1f5f9}.wrap{max-width:900px;margin:0 auto;padding:1rem}
   <h1 style="margin:1rem 0 .25rem;">People</h1>
   <p style="color:#475569;margin-top:0;">Your customers — who's tracking what, and what they say about you.</p>
   <div class="tile-grid">
+    <a class="tile" href="/admin/customers.php">
+      <div class="tile-icon">🧑‍💼</div>
+      <h2 class="tile-title">Customers</h2>
+      <p class="tile-desc">Your master customer list. Link shipments to a customer and copy their details in one click.</p>
+      <span class="tile-count"><?= $customers ?> customer(s)</span>
+    </a>
     <a class="tile" href="/admin/tracking-lookups.php">
       <div class="tile-icon">🔍</div>
       <h2 class="tile-title">Tracking Lookups</h2>

@@ -11,12 +11,12 @@ $envFile = dirname(__DIR__, 2) . '/.env';
 if (file_exists($envFile)) {
     foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         $line = trim($line);
-        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) continue;
+        if ($line === '' || strpos($line, '#') === 0 || strpos($line, '=') === false) continue;
         [$n, $v] = explode('=', $line, 2);
         $_ENV[trim($n)] = trim(trim($v), "\"'");
     }
 }
-$mapboxToken = $_ENV['MAPBOX_TOKEN'] ?? '';
+$mapStyle = nxMapStyleUrl();
 
 $db = Database::connection();
 $shipmentId = (int)($_GET['id'] ?? 0);
@@ -44,11 +44,12 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Route Editor — <?= hh($shipment['tracking_number']) ?></title>
-<link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
-<script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+<link href="<?= asset('vendor/maplibre/maplibre-gl.css') ?>" rel="stylesheet">
+<script src="<?= asset('vendor/maplibre/maplibre-gl.js') ?>"></script>
+<script src="<?= asset('js/nx-map.js') ?>"></script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
-<script src="/assets/js/nx-labels.js"></script>
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
+<script src="<?= asset('js/nx-labels.js') ?>"></script>
 <style>
   body { background: #f1f5f9; }
   .nx-rt-wrap { max-width: 1400px; margin: 0 auto; padding: 1rem; }
@@ -87,7 +88,7 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
   .nx-form-row textarea { min-height: 50px; resize: vertical; }
   #nx-add-form { border-top: 1px solid #e2e8f0; padding-top: 1rem; margin-top: 1rem; }
 </style>
-<script src="/assets/js/nx-popup.js"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 <body>
 <header class="navbar">
@@ -222,7 +223,6 @@ window.addEventListener("unhandledrejection", function(e){
 </script>
 
 <script>
-mapboxgl.accessToken = <?= json_encode($mapboxToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 (function(){
 'use strict';
 
@@ -259,15 +259,13 @@ document.querySelectorAll('.nx-leg-badge').forEach(el => {
   el.textContent = LEG_ICONS[el.dataset.leg] || el.dataset.leg;
 });
 
-const map = new mapboxgl.Map({
-  container: 'nx-route-map',
-  style: 'mapbox://styles/mapbox/satellite-streets-v12',
+const map = nxCreateMap('nx-route-map', <?= json_encode($mapStyle, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, {
   center: [0, 20],
   zoom: 2,
   attributionControl: { compact: true }
 });
-map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-left');
-map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100 }), 'bottom-left');
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
+map.addControl(new maplibregl.ScaleControl({ maxWidth: 100 }), 'bottom-left');
 
 let wpMarkers = [];
 let addMode = false;
@@ -319,8 +317,8 @@ function renderWaypoints() {
     el.style.cssText = 'display:flex;flex-direction:column;align-items:center;cursor:pointer;';
     el.innerHTML = '<div style="font-size:22px;line-height:1;text-shadow:0 0 8px rgba(0,0,0,.7);">' + (WP_ICONS[w.waypoint_type] || '📍') + '</div>' +
       '<div style="background:rgba(11,29,58,.92);color:#fff;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap;margin-top:2px;border:1px solid rgba(240,180,41,.4);">' + esc(w.name) + '</div>';
-    const m = new mapboxgl.Marker({ element: el, anchor:'bottom' }).setLngLat([w.longitude, w.latitude]).addTo(map);
-    m.setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(
+    const m = new maplibregl.Marker({ element: el, anchor:'bottom' }).setLngLat([w.longitude, w.latitude]).addTo(map);
+    m.setPopup(new maplibregl.Popup({ offset: 25 }).setHTML(
       '<div style="font-family:Plus Jakarta Sans,system-ui,sans-serif;font-size:.85rem;line-height:1.5;min-width:180px;">' +
         '<b style="color:#0b1d3a;">' + esc(w.name) + '</b><br>' +
         '<span style="color:#64748b;">Type: ' + esc(w.waypoint_type) + '</span><br>' +
@@ -337,7 +335,7 @@ function fitToWaypoints() {
     map.easeTo({ center: [WAYPOINTS[0].longitude, WAYPOINTS[0].latitude], zoom: 6, duration: 0 });
     return;
   }
-  const b = new mapboxgl.LngLatBounds();
+  const b = new maplibregl.LngLatBounds();
   WAYPOINTS.forEach(w => b.extend([w.longitude, w.latitude]));
   map.fitBounds(b, { padding: 80, maxZoom: 8, duration: 0 });
 }

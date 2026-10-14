@@ -17,7 +17,7 @@ function respond(
     string $message,
     array $data = [],
     int $code = 200
-): never {
+): void {
     http_response_code($code);
 
     echo json_encode(
@@ -757,6 +757,8 @@ $shipmentId = filter_input(
             $responseData['event'] = $createdEvent;
         }
     }
+
+    nxAudit('tracking.' . $action, 'shipment', $shipmentId);
 
     respond(
         true,

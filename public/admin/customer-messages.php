@@ -72,7 +72,7 @@ $iconChoices = ['truck','air','sea','rail','bike','shield','alert','check','cloc
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Customer Messages — Nexora Logistics Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 <style>
   body{background:#f1f5f9;}
   .wrap{max-width:1100px;margin:0 auto;padding:1rem;}
@@ -96,8 +96,8 @@ $iconChoices = ['truck','air','sea','rail','bike','shield','alert','check','cloc
   .tab-panel.active{display:block;}
   .icon-preview{width:26px;height:26px;border-radius:6px;background:#f1f5f9;display:inline-flex;align-items:center;justify-content:center;font-size:14px;}
 </style>
-    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 <body>
 <header class="navbar">

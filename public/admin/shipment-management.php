@@ -18,7 +18,10 @@ $statusFilter = trim((string)($_GET['status'] ?? ''));
 $allowedStatuses = [
     'pending',
     'in_transit',
+    'delayed',
     'on_hold',
+    'held',
+    'seized',
     'delivered',
     'cancelled'
 ];
@@ -98,7 +101,7 @@ $countStmt = $db->query("
 
 $counts = $countStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-function h(mixed $value): string
+function h($value): string
 {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
@@ -121,24 +124,34 @@ function transportLabel(string $type, string $vehicleName = ''): string {
 
 function statusLabel(string $status): string
 {
-    return match (strtolower($status)) {
-        'in_transit' => 'In Transit',
-        'on_hold' => 'On Hold',
-        'delivered' => 'Delivered',
-        'cancelled' => 'Cancelled',
-        default => 'Pending',
-    };
+    switch (strtolower($status)) {
+        case 'in_transit':
+            return 'In Transit';
+        case 'on_hold':
+            return 'On Hold';
+        case 'delivered':
+            return 'Delivered';
+        case 'cancelled':
+            return 'Cancelled';
+        default:
+            return 'Pending';
+    }
 }
 
 function statusClass(string $status): string
 {
-    return match (strtolower($status)) {
-        'in_transit' => 'status-info',
-        'delivered' => 'status-success',
-        'on_hold' => 'status-warning',
-        'cancelled' => 'status-danger',
-        default => 'status-muted',
-    };
+    switch (strtolower($status)) {
+        case 'in_transit':
+            return 'status-info';
+        case 'delivered':
+            return 'status-success';
+        case 'on_hold':
+            return 'status-warning';
+        case 'cancelled':
+            return 'status-danger';
+        default:
+            return 'status-muted';
+    }
 }
 
 function formatDistance(float $distance): string
@@ -467,9 +480,9 @@ $admin = Auth::admin();
             }
         }
     </style>
-<link rel="stylesheet" href="/assets/css/app.css">
-    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 
 <body>
@@ -621,7 +634,7 @@ $admin = Auth::admin();
                                     ID #<?= $id ?>
                                 </div>
                                     <?php if (!empty($shipment['carrier_name'])): ?>
-                                        <?php $nxClogo = !empty($shipment['carrier_logo_path']) ? '/assets/carriers/' . rawurlencode($shipment['carrier_logo_path']) : (!empty($shipment['carrier_logo_url']) ? $shipment['carrier_logo_url'] : null); ?>
+                                        <?php $nxClogo = !empty($shipment['carrier_logo_path']) ? asset('carriers/' . rawurlencode($shipment['carrier_logo_path'])) : (!empty($shipment['carrier_logo_url']) ? $shipment['carrier_logo_url'] : null); ?>
                                         <div class="nx-carrier-chip" style="display:inline-flex;align-items:center;gap:.35rem;margin-top:.35rem;padding:.15rem .55rem;border-radius:999px;background:#f1f5f9;font-size:.72rem;font-weight:600;color:#475569;border:1px solid #e2e8f0;">
                                             <?php if ($nxClogo): ?><img src="<?= h($nxClogo) ?>" alt="" style="width:14px;height:14px;border-radius:3px;object-fit:cover;"><?php endif; ?>
                                             <?= h($shipment['carrier_name']) ?><?php if (!empty($shipment['carrier_code'])): ?> · <?= h($shipment['carrier_code']) ?><?php endif; ?>
@@ -742,9 +755,18 @@ $admin = Auth::admin();
 
                                     <a
                                         class="action"
-                                        href="/admin/shipment-control.php?id=<?= $id ?>"
+                                        href="/track.php?id=<?= h(rawurlencode($shipment['tracking_number'])) ?>"
+                                        target="_blank"
+                                        rel="noopener"
                                     >
-                                        📍 Track
+                                        👁️ View as Customer
+                                    </a>
+
+                                    <a
+                                        class="action"
+                                        href="/admin/proof-of-delivery.php?id=<?= $id ?>"
+                                    >
+                                        🧾 Proof
                                     </a>
 
                                 </div>

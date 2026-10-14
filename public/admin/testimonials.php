@@ -30,9 +30,12 @@ function handlePhotoUpload(int $id): array {
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $mime = $finfo->file($f['tmp_name']);
     if (!in_array($mime, ALLOWED_PHOTO_MIMES, true)) return [null, 'Only PNG, JPG, WEBP allowed.'];
-    $ext = match($mime) {
-        'image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', default => 'bin'
-    };
+    switch ($mime) {
+        case 'image/png': $ext = 'png'; break;
+        case 'image/jpeg': $ext = 'jpg'; break;
+        case 'image/webp': $ext = 'webp'; break;
+        default: $ext = 'bin';
+    }
     $name = 'reviewer-' . $id . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
     $dest = dirname(__DIR__) . '/assets/images/testimonials/' . $name;
     if (!move_uploaded_file($f['tmp_name'], $dest)) return [null, 'Could not save photo.'];
@@ -114,7 +117,7 @@ function stars(int $n): string { return str_repeat('★', $n) . str_repeat('☆'
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Testimonials — Nexora Logistics Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 <style>
   body { background:#f1f5f9; }
   .wrap { max-width:1100px; margin:0 auto; padding:1rem; }
@@ -128,8 +131,8 @@ function stars(int $n): string { return str_repeat('★', $n) . str_repeat('☆'
   .msg-ok { padding:.75rem 1rem; background:rgba(22,163,74,.1); color:#166534; border-radius:10px; margin-bottom:1rem; }
   .msg-err { padding:.75rem 1rem; background:rgba(220,38,38,.1); color:#991b1b; border-radius:10px; margin-bottom:1rem; }
 </style>
-    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 <body>
 <header class="navbar">
@@ -190,7 +193,7 @@ function stars(int $n): string { return str_repeat('★', $n) . str_repeat('☆'
       </div>
 
       <?php if ($edit && !empty($edit['author_photo_path'])): ?>
-        <p style="margin-top:.75rem;font-size:.85rem;color:#475569;">Current photo: <code>/assets/images/testimonials/<?= hh($edit['author_photo_path']) ?></code></p>
+        <p style="margin-top:.75rem;font-size:.85rem;color:#475569;">Current photo: <code><?= hh(asset('images/testimonials/' . $edit['author_photo_path'])) ?></code></p>
       <?php endif; ?>
 
       <div class="actions">
@@ -219,7 +222,7 @@ function stars(int $n): string { return str_repeat('★', $n) . str_repeat('☆'
           <?php foreach ($rows as $r): ?>
             <?php
               $src = null;
-              if (!empty($r['author_photo_path'])) $src = '/assets/images/testimonials/' . rawurlencode($r['author_photo_path']);
+              if (!empty($r['author_photo_path'])) $src = asset('images/testimonials/' . rawurlencode($r['author_photo_path']));
               elseif (!empty($r['author_photo_url'])) $src = $r['author_photo_url'];
             ?>
             <tr style="border-bottom:1px solid #e5e7eb;">

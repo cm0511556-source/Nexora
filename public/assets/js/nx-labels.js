@@ -138,13 +138,27 @@
     return la.toFixed(d) + ', ' + ln.toFixed(d);
   }
 
+  /* ---------- Asset base ---------- */
+  function nxAssetBase() {
+    if (global.NX_ASSET_BASE) return global.NX_ASSET_BASE;
+    var s = document.currentScript;
+    if (!s || !s.src || !/nx-labels\.js/.test(s.src)) {
+      var all = document.getElementsByTagName('script');
+      for (var i = all.length - 1; i >= 0; i--) {
+        if (all[i].src && /nx-labels\.js/.test(all[i].src)) { s = all[i]; break; }
+      }
+    }
+    if (s && s.src) return s.src.replace(/js\/nx-labels\.js.*$/, '');
+    return '/assets/';
+  }
+
   /* ---------- Carrier ---------- */
   function nxCarrier(row) {
     if (!row) return null;
     return {
       name: row.name || '',
       code: row.code || '',
-      logo: row.logo_public || row.logo_path ? ('/assets/carriers/' + row.logo_path) : (row.logo_url || null)
+      logo: row.logo_public || row.logo_path ? (nxAssetBase() + 'carriers/' + row.logo_path) : (row.logo_url || null)
     };
   }
 

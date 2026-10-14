@@ -187,7 +187,7 @@
 
     <h3>Live Map tab</h3>
     <ul>
-      <li>Real Mapbox satellite map with the shipment's position, the origin flag pin, the destination flag pin, and all waypoints.</li>
+      <li>Real live vector map (MapLibre GL JS + OpenFreeMap, no API key) with the shipment's position, the origin flag pin, the destination flag pin, and all waypoints.</li>
       <li>The route line is colour-coded per leg — gold for air, blue for sea, grey for road, pink for bike, dark for pedestrian.</li>
       <li><strong>Tap the vehicle marker</strong> to see a popup with status, speed, last update.</li>
       <li><strong>⛶ Fullscreen</strong> — bottom-right of the map.</li>
@@ -1213,7 +1213,7 @@
 
     <h2 id="appendix-c">Appendix C · Map behaviour</h2>
 
-    <p>Both the public tracking page and the admin live map use Mapbox satellite imagery. Here's what each thing on the map means.</p>
+    <p>Both the public tracking page and the admin live map use MapLibre GL JS with free OpenFreeMap vector tiles (no API key, no account, no billing). Here's what each thing on the map means.</p>
 
     <table>
       <thead><tr><th>Item</th><th>What it is</th></tr></thead>
@@ -1225,7 +1225,7 @@
         <tr><td>Top-left HUD box</td><td>Current weather, local time, and day-part at the shipment's location.</td></tr>
         <tr><td>Small icons moving around the world</td><td>Ambient activity — real aircraft and decorative traffic. Not your shipment. Tap any of them to confirm.</td></tr>
         <tr><td>⛶ Fullscreen button</td><td>Bottom-right of the map. Expands to fill the screen without losing the route or markers.</td></tr>
-        <tr><td>ⓘ circle bottom-right</td><td>Mapbox attribution. Required by licence — do not remove.</td></tr>
+        <tr><td>ⓘ circle bottom-right</td><td>Map attribution (OpenFreeMap / OpenStreetMap / MapLibre). Required by licence — do not remove.</td></tr>
       </tbody>
     </table>
 
@@ -1289,7 +1289,7 @@
       <li><code>admin/customer-messages.php</code> — timeline wording editor</li>
       <li><code>admin/settings.php</code> — settings hub</li>
       <li><code>admin/carriers.php</code> — partner companies</li>
-      <li><code>admin/dashboard-test.php</code> — diagnostics</li>
+      <li><code>admin/audit-log.php</code> — audit log &nbsp;·&nbsp; <code>admin/backup.php</code> — database backup &nbsp;·&nbsp; <code>admin/password-reset.php</code> — password reset</li>
       <li><code>admin/manual.php</code> — this manual</li>
     </ul>
 
@@ -1299,7 +1299,7 @@
       <li><code>backups/</code> — timestamped backups before every schema change</li>
       <li><code>app/Auth.php</code>, <code>app/Database.php</code>, <code>app/Tracking/Engine.php</code> — internal logic</li>
       <li><code>config/config.php</code> — framework config</li>
-      <li><code>.env</code> — settings + the Mapbox token</li>
+      <li><code>.env</code> — settings (app name, base URL, map style). No external map token is needed.</li>
     </ul>
 
     <h2 id="downloads">Downloads</h2>

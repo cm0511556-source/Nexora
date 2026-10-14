@@ -8,7 +8,7 @@ use VibrantHub\Auth; use VibrantHub\Database;
 Auth::requireAdmin();
 header('Content-Type: application/json; charset=utf-8');
 
-function respond(bool $ok, string $msg, array $data = [], int $code = 200): never {
+function respond(bool $ok, string $msg, array $data = [], int $code = 200): void {
     http_response_code($code);
     echo json_encode(['success' => $ok, 'message' => $msg, 'data' => $data], JSON_UNESCAPED_SLASHES);
     exit;

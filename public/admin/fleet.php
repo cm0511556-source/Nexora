@@ -11,12 +11,12 @@ $envFile = dirname(__DIR__, 2) . '/.env';
 if (file_exists($envFile)) {
     foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         $line = trim($line);
-        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) continue;
+        if ($line === '' || strpos($line, '#') === 0 || strpos($line, '=') === false) continue;
         [$n, $v] = explode('=', $line, 2);
         $_ENV[trim($n)] = trim(trim($v), "\"'");
     }
 }
-$mapboxToken = $_ENV['MAPBOX_TOKEN'] ?? '';
+$mapStyle = nxMapStyleUrl();
 
 $db = Database::connection();
 
@@ -45,11 +45,12 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fleet View — Nexora Admin</title>
-<link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
-<script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+<link href="<?= asset('vendor/maplibre/maplibre-gl.css') ?>" rel="stylesheet">
+<script src="<?= asset('vendor/maplibre/maplibre-gl.js') ?>"></script>
+<script src="<?= asset('js/nx-map.js') ?>"></script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
-<script src="/assets/js/nx-labels.js"></script>
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
+<script src="<?= asset('js/nx-labels.js') ?>"></script>
 <style>
   body { background: #f1f5f9; }
   .nx-fleet-wrap { max-width: 1500px; margin: 0 auto; padding: 1rem; }
@@ -74,7 +75,7 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
   .nx-veh-label { background: rgba(11,29,58,.92); color: #fff; font-size: .68rem; font-weight: 700; padding: 2px 6px; border-radius: 5px; margin-top: 2px; white-space: nowrap; }
   .nx-fleet-map-wrap { position: relative; }
 </style>
-<script src="/assets/js/nx-popup.js"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 <body>
 <header class="navbar">
@@ -123,7 +124,6 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
 </div>
 
 <script>
-mapboxgl.accessToken = <?= json_encode($mapboxToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 (function(){
 'use strict';
 
@@ -156,14 +156,12 @@ const SHIPMENTS = <?= json_encode(array_map(function($s){
     ];
 }, $shipments)) ?>;
 
-const map = new mapboxgl.Map({
-  container: 'nx-fleet-map',
-  style: 'mapbox://styles/mapbox/satellite-streets-v12',
+const map = nxCreateMap('nx-fleet-map', <?= json_encode($mapStyle, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, {
   center: [10, 30], zoom: 2,
   attributionControl: { compact: true }
 });
-map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-left');
-map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
+map.addControl(new maplibregl.FullscreenControl(), 'top-right');
 
 function esc(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
@@ -205,13 +203,13 @@ function renderMarkers(list) {
       '</div>' +
       '<div class="nx-veh-label">' + esc(s.tracking) + '</div>';
 
-    const m = new mapboxgl.Marker({ element: el, anchor: 'center' })
+    const m = new maplibregl.Marker({ element: el, anchor: 'center' })
       .setLngLat([s.current_lng, s.current_lat])
       .addTo(map);
 
     const flag_o = flagFor(s.origin);
     const flag_d = flagFor(s.destination);
-    m.setPopup(new mapboxgl.Popup({ offset: 30, closeButton: true, maxWidth: 300 }).setHTML(
+    m.setPopup(new maplibregl.Popup({ offset: 30, closeButton: true, maxWidth: 300 }).setHTML(
       '<div style="font-family:Plus Jakarta Sans,system-ui,sans-serif;font-size:.88rem;line-height:1.55;min-width:220px;">' +
         '<div style="font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">Shipment</div>' +
         '<div style="font-weight:800;color:#0b1d3a;font-size:1.05rem;">' + esc(s.tracking) + '</div>' +
@@ -225,7 +223,7 @@ function renderMarkers(list) {
         '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">' +
           '<a href="/admin/shipment-control.php?id=' + s.id + '" style="padding:.35rem .7rem;border-radius:7px;background:#0b1d3a;color:#fff;text-decoration:none;font-size:.82rem;font-weight:600;">Open</a>' +
           '<a href="/admin/shipment-route.php?id=' + s.id + '" style="padding:.35rem .7rem;border-radius:7px;border:1px solid #cbd5e1;color:#0b1d3a;text-decoration:none;font-size:.82rem;font-weight:600;">Route</a>' +
-          '<a href="/track.php?tracking=' + encodeURIComponent(s.tracking) + '" target="_blank" rel="noopener" style="padding:.35rem .7rem;border-radius:7px;border:1px solid #cbd5e1;color:#0b1d3a;text-decoration:none;font-size:.82rem;font-weight:600;">Public view</a>' +
+          '<a href="/track.php?id=' + encodeURIComponent(s.tracking) + '" target="_blank" rel="noopener" style="padding:.35rem .7rem;border-radius:7px;border:1px solid #cbd5e1;color:#0b1d3a;text-decoration:none;font-size:.82rem;font-weight:600;">Public view</a>' +
         '</div>' +
       '</div>'
     ));
@@ -262,7 +260,7 @@ function renderMarkers(list) {
 
 function fitAll(list) {
   if (!list.length) return;
-  const b = new mapboxgl.LngLatBounds();
+  const b = new maplibregl.LngLatBounds();
   list.forEach(s => {
     b.extend([s.origin_lng, s.origin_lat]);
     b.extend([s.dest_lng, s.dest_lat]);

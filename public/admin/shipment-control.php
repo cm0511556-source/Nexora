@@ -84,7 +84,7 @@ $eventStmt->execute([
 ]);
 $events = $eventStmt->fetchAll();
 
-function vhEscape(mixed $value): string
+function vhEscape($value): string
 {
     return htmlspecialchars(
         (string) $value,
@@ -106,13 +106,23 @@ function vhTransportIcon($type, $vehicleName = ''): string {
 
 function vhStatusClass(string $status): string
 {
-    return match (strtolower($status)) {
-        'delivered', 'completed' => 'success',
-        'in_transit', 'moving' => 'info',
-        'on_hold', 'held', 'paused' => 'warning',
-        'cancelled', 'failed' => 'danger',
-        default => 'muted'
-    };
+    switch (strtolower($status)) {
+        case 'delivered':
+        case 'completed':
+            return 'success';
+        case 'in_transit':
+        case 'moving':
+            return 'info';
+        case 'on_hold':
+        case 'held':
+        case 'paused':
+            return 'warning';
+        case 'cancelled':
+        case 'failed':
+            return 'danger';
+        default:
+            return 'muted';
+    }
 }
 
 $status = (string) $shipment['status'];
@@ -599,10 +609,11 @@ $controlSpeed = (float) (
         font-size: 17px;
     }
     </style>
-<link rel="stylesheet" href="/assets/css/app.css">
-    <script src="/assets/js/nx-labels.js"></script>
-<link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
-<script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<link href="<?= asset('vendor/maplibre/maplibre-gl.css') ?>" rel="stylesheet">
+<script src="<?= asset('vendor/maplibre/maplibre-gl.js') ?>"></script>
+<script src="<?= asset('js/nx-map.js') ?>"></script>
     <style>
     .nx-admin-fs { position: absolute; bottom: 20px; right: 12px; z-index: 9999; background: rgba(11,29,58,.9); color: #fff; border: 1px solid rgba(240,180,41,.5); border-radius: 9px; padding: .5rem .85rem; font-size: .82rem; font-weight: 600; cursor: pointer; font-family: inherit; }
     .nx-admin-fs:hover { background: #132a52; }
@@ -611,7 +622,7 @@ $controlSpeed = (float) (
 
     #globalTrackingMap { position: relative; }
     </style>
-<script src="/assets/js/nx-popup.js"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 <body>
 
@@ -660,6 +671,11 @@ $controlSpeed = (float) (
                     <?= vhEscape($shipment['destination']) ?>
                     ·
                     <?= vhEscape($shipment['customer_name']) ?>
+                </div>
+
+                <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+                    <a href="/track.php?id=<?= rawurlencode((string) $shipment['tracking_number']) ?>" target="_blank" rel="noopener" style="font-size:.85rem;font-weight:600;padding:.45rem .85rem;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#0b1d3a;text-decoration:none;">👁️ View as Customer</a>
+                    <a href="/admin/proof-of-delivery.php?id=<?= (int) $shipmentId ?>" style="font-size:.85rem;font-weight:600;padding:.45rem .85rem;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#0b1d3a;text-decoration:none;">🧾 Proof of Delivery</a>
                 </div>
             </div>
 
@@ -1612,19 +1628,16 @@ function nxInterval(fn, ms) { var id = setInterval(fn, ms); window.__nxTimers.pu
 window.addEventListener("pagehide", function(){ window.__nxTimers.forEach(function(id){ clearInterval(id); }); });
 window.addEventListener("beforeunload", function(){ window.__nxTimers.forEach(function(id){ clearInterval(id); }); });
 function initializeMap() {
-  if (typeof mapboxgl === 'undefined') {
+  if (typeof maplibregl === 'undefined') {
     showToast('Map library could not be loaded.');
     return;
   }
-  mapboxgl.accessToken = <?= json_encode($_ENV['MAPBOX_TOKEN'] ?? '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
-  map = new mapboxgl.Map({
-    container: 'globalTrackingMap',
-    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+  map = nxCreateMap('globalTrackingMap', <?= json_encode(MAP_STYLE_URL, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, {
     center: [0, 30],
     zoom: 2,
     attributionControl: { compact: true }
   });
-  map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-left');
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
 
   map.on('load', () => {
     const route = buildRoute();
@@ -1673,14 +1686,14 @@ function initializeMap() {
     const oEl = document.createElement('div');
     oEl.innerHTML = '<div style="font-size:24px;text-align:center;filter:drop-shadow(0 0 6px rgba(0,0,0,.7));">' + originFlag + '</div>' +
                     '<div style="background:#0b1d3a;color:#fff;font-size:.72rem;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap;margin-top:2px;">' + escapeHtml(<?= json_encode($shipment['origin'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>) + '</div>';
-    new mapboxgl.Marker({ element: oEl, anchor:'bottom' }).setLngLat([origin.lng, origin.lat]).addTo(map);
+    new maplibregl.Marker({ element: oEl, anchor:'bottom' }).setLngLat([origin.lng, origin.lat]).addTo(map);
 
     // ---- Destination flag ----
     const destFlag = (window.NX && NX.flag) ? NX.flag(<?= json_encode($shipment['destination'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>) : '📍';
     const dEl = document.createElement('div');
     dEl.innerHTML = '<div style="font-size:24px;text-align:center;filter:drop-shadow(0 0 6px rgba(0,0,0,.7));">' + destFlag + '</div>' +
                     '<div style="background:#f0b429;color:#0b1d3a;font-size:.72rem;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap;margin-top:2px;">' + escapeHtml(<?= json_encode($shipment['destination'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>) + '</div>';
-    new mapboxgl.Marker({ element: dEl, anchor:'bottom' }).setLngLat([destination.lng, destination.lat]).addTo(map);
+    new maplibregl.Marker({ element: dEl, anchor:'bottom' }).setLngLat([destination.lng, destination.lat]).addTo(map);
 
     // ---- Waypoints ----
     waypoints.forEach(point => {
@@ -1689,8 +1702,8 @@ function initializeMap() {
       const wEl = document.createElement('div');
       wEl.innerHTML = '<div style="font-size:18px;text-align:center;">' + icon + '</div>' +
                       '<div style="background:rgba(11,29,58,.9);color:#fff;font-size:.7rem;font-weight:600;padding:1px 6px;border-radius:5px;white-space:nowrap;margin-top:1px;border:1px solid rgba(240,180,41,.4);">' + escapeHtml(point.name) + '</div>';
-      const m = new mapboxgl.Marker({ element: wEl, anchor:'bottom' }).setLngLat([point.lng, point.lat]).addTo(map);
-      m.setPopup(new mapboxgl.Popup({ offset: 20 }).setHTML('<b>Waypoint</b><br>' + escapeHtml(point.name)));
+      const m = new maplibregl.Marker({ element: wEl, anchor:'bottom' }).setLngLat([point.lng, point.lat]).addTo(map);
+      m.setPopup(new maplibregl.Popup({ offset: 20 }).setHTML('<b>Waypoint</b><br>' + escapeHtml(point.name)));
     });
 
     // ---- Shipment marker (gold, glowing) ----
@@ -1700,7 +1713,7 @@ function initializeMap() {
     sEl.innerHTML = '<div style="width:52px;height:52px;border-radius:50%;background:rgba(11,29,58,.9);border:3px solid #f0b429;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px #f0b429;">' +
                     '<div id="nx-shipment-emoji" style="font-size:28px;line-height:1;">' + shipEmoji + '</div></div>' +
                     '<div style="background:#f0b429;color:#0b1d3a;font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap;margin-top:4px;text-align:center;">' + escapeHtml(<?= json_encode($shipment['tracking_number'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>) + '</div>';
-    shipmentMarker = new mapboxgl.Marker({ element: sEl, anchor:'center' })
+    shipmentMarker = new maplibregl.Marker({ element: sEl, anchor:'center' })
       .setLngLat([<?= (float) $shipment['current_lng'] ?>, <?= (float) $shipment['current_lat'] ?>])
       .addTo(map);
     // Face the plane in the direction of travel (bearing to next stop)
@@ -1729,7 +1742,7 @@ function initializeMap() {
       setInterval(rotateToHeading, 4000);
     })();
 
-    const shipPopup = new mapboxgl.Popup({ offset: 40, closeButton: true }).setHTML(
+    const shipPopup = new maplibregl.Popup({ offset: 40, closeButton: true }).setHTML(
       '<div style="font-family:Plus Jakarta Sans,system-ui,sans-serif;font-size:.88rem;line-height:1.55;min-width:220px;">' +
         '<div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">Shipment</div>' +
         '<div style="font-weight:800;color:#0b1d3a;font-size:1.05rem;">' + escapeHtml(<?= json_encode($shipment['tracking_number'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>) + '</div>' +
@@ -1745,7 +1758,7 @@ function initializeMap() {
     shipmentMarker.setPopup(shipPopup);
 
     // ---- Fit ----
-    const bounds = new mapboxgl.LngLatBounds();
+    const bounds = new maplibregl.LngLatBounds();
     bounds.extend([origin.lng, origin.lat]);
     bounds.extend([destination.lng, destination.lat]);
     if (<?= (float)$shipment['current_lat'] ?>) bounds.extend([<?= (float) $shipment['current_lng'] ?>, <?= (float) $shipment['current_lat'] ?>]);
@@ -2586,7 +2599,7 @@ body.nx-map-fs-active #globalTrackingMap {
   margin: 0 !important; padding: 0 !important;
   position: relative !important;
 }
-body.nx-map-fs-active #globalTrackingMap .mapboxgl-canvas {
+body.nx-map-fs-active #globalTrackingMap .maplibregl-canvas {
   width: 100% !important; height: 100% !important;
 }
 body.nx-map-fs-active #nx-map-fs-btn {
@@ -2626,7 +2639,7 @@ body.nx-map-fs-active #nx-map-fs-btn {
       document.body.classList.toggle('nx-map-fs-active', !active);
       var nowActive = document.body.classList.contains('nx-map-fs-active');
       btn.textContent = nowActive ? '✕ Close fullscreen' : '⛶ Fullscreen';
-      // Force Mapbox to fully recompute size. Reading offsetWidth/Height after
+      // Force MapLibre to fully recompute size. Reading offsetWidth/Height after
       // toggling display guarantees layout has flushed before we call resize().
       var el = document.getElementById('globalTrackingMap');
       var timings = [0, 50, 150, 300, 500, 800, 1200, 1600];

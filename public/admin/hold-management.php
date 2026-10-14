@@ -12,7 +12,7 @@ header('Content-Type: application/json; charset=utf-8');
 Auth::requireAdmin();
 Auth::startSession();
 
-function holdResponse(bool $success, string $message, array $data = [], int $code = 200): never
+function holdResponse(bool $success, string $message, array $data = [], int $code = 200): void
 {
     http_response_code($code);
     echo json_encode([

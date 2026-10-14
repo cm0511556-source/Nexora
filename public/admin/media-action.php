@@ -11,7 +11,7 @@ use VibrantHub\Database;
 Auth::requireAdmin();
 header('Content-Type: application/json; charset=utf-8');
 
-function jout(bool $ok, string $msg, array $data = [], int $code = 200): never {
+function jout(bool $ok, string $msg, array $data = [], int $code = 200): void {
     http_response_code($code);
     echo json_encode(['success' => $ok, 'message' => $msg, 'data' => $data], JSON_UNESCAPED_SLASHES);
     exit;

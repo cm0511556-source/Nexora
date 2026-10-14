@@ -26,30 +26,47 @@ $stmt = $db->query(
 
 $shipments = $stmt->fetchAll();
 
-function h(string|int|float|null $value): string
+function h($value): string
 {
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
 function statusClass(string $status): string
 {
-    return match (strtolower($status)) {
-        'delivered' => 'success',
-        'in_transit' => 'info',
-        'delayed', 'held', 'on_hold' => 'warning',
-        'cancelled', 'failed' => 'danger',
-        default => 'muted',
-    };
+    switch (strtolower($status)) {
+        case 'delivered':
+            return 'success';
+        case 'in_transit':
+            return 'info';
+        case 'delayed':
+        case 'held':
+        case 'on_hold':
+            return 'warning';
+        case 'cancelled':
+        case 'failed':
+            return 'danger';
+        default:
+            return 'muted';
+    }
 }
 
 function transportIcon(string $type): string
 {
-    return match (strtolower($type)) {
-        'airplane', 'plane', 'air' => '✈️',
-        'ship', 'ocean', 'sea' => '🚢',
-        'train', 'rail' => '🚆',
-        default => '🚚',
-    };
+    switch (strtolower($type)) {
+        case 'airplane':
+        case 'plane':
+        case 'air':
+            return '✈️';
+        case 'ship':
+        case 'ocean':
+        case 'sea':
+            return '🚢';
+        case 'train':
+        case 'rail':
+            return '🚆';
+        default:
+            return '🚚';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -199,9 +216,9 @@ th {
     color: #64748b;
 }
 </style>
-<link rel="stylesheet" href="/assets/css/app.css">
-    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 
 <body>
@@ -309,6 +326,15 @@ th {
                                 href="/admin/shipment-control.php?id=<?= (int) $shipment['id'] ?>"
                             >
                                 Open Controls
+                            </a>
+                            <a
+                                class="control"
+                                href="/track.php?id=<?= h(rawurlencode($shipment['tracking_number'])) ?>"
+                                target="_blank"
+                                rel="noopener"
+                                style="margin-left:6px;"
+                            >
+                                👁️ View as Customer
                             </a>
                         </td>
 

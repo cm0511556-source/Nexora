@@ -79,7 +79,7 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tracking Lookups — Nexora Logistics Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 <style>
   body { background: #f1f5f9; }
   .wrap { max-width: 1200px; margin: 0 auto; padding: 1rem; }
@@ -100,8 +100,8 @@ function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES
   .history-list a { color: #0b1d3a; font-weight: 600; text-decoration: none; }
   .empty { padding: 2rem; text-align: center; color: #64748b; }
 </style>
-    <script src="/assets/js/nx-labels.js"></script>
-<script src="/assets/js/nx-popup.js"></script>
+    <script src="<?= asset('js/nx-labels.js') ?>"></script>
+<script src="<?= asset('js/nx-popup.js') ?>"></script>
 </head>
 <body>
 <header class="navbar">

@@ -10,8 +10,11 @@ final class Engine
 {
     private const EARTH_RADIUS_KM = 6371.0088;
 
-    public function __construct(private PDO $db)
+    private PDO $db;
+
+    public function __construct(PDO $db)
     {
+        $this->db = $db;
     }
 
     public function tick(int $shipmentId): array
@@ -42,8 +45,13 @@ final class Engine
 
         $now = microtime(true);
 
+        // All timestamps written by SQLite use CURRENT_TIMESTAMP, which is UTC.
+        // Parse them explicitly as UTC so the elapsed-time calculation does not
+        // inherit PHP's configured display timezone (config.php sets Africa/Lagos).
+        // Without the " UTC" suffix every tick looked ~1 hour late, was clamped to
+        // the 60s maximum and jumped the shipment forward far too fast.
         $lastUpdate = $shipment['last_update']
-            ? strtotime((string)$shipment['last_update'])
+            ? strtotime((string)$shipment['last_update'] . ' UTC')
             : null;
 
         if ($lastUpdate === false || $lastUpdate === null) {
@@ -220,7 +228,7 @@ final class Engine
                 );
 
                 $updateWaypoint->execute([
-                    ':status' => 'arrived',
+                    ':status' => 'completed',
                     ':id' => $waypointId,
                 ]);
 
@@ -234,8 +242,8 @@ final class Engine
                 $event->execute([
                     ':shipment_id' => $shipmentId,
                     ':status' => 'arrived',
-                    ':title' => 'Arrived at waypoint',
-                    ':description' => 'Shipment has arrived at the next scheduled waypoint and is awaiting departure.',
+                    ':title' => 'Passed waypoint',
+                    ':description' => 'Shipment reached the scheduled waypoint and continued on the next leg.',
                     ':location' => $waypoint['name'],
                 ]);
 
@@ -255,12 +263,14 @@ final class Engine
 
                 $nextWaypoint = $next->fetch();
 
+                // Auto-continue: keep the shipment running onto the next leg
+                // instead of pausing at every waypoint (approved behaviour).
                 $controlUpdate = $this->db->prepare(
                     'UPDATE tracking_controls
-                     SET is_running = 0,
+                     SET is_running = 1,
                          current_waypoint_id = :current_waypoint,
                          next_waypoint_id = :next_waypoint,
-                         paused_reason = :reason,
+                         paused_reason = NULL,
                          updated_at = CURRENT_TIMESTAMP
                      WHERE shipment_id = :shipment_id'
                 );
@@ -270,7 +280,6 @@ final class Engine
                     ':next_waypoint' => $nextWaypoint
                         ? (int)$nextWaypoint['id']
                         : null,
-                    ':reason' => 'Arrived at waypoint; awaiting departure.',
                     ':shipment_id' => $shipmentId,
                 ]);
 
@@ -278,7 +287,7 @@ final class Engine
                     'UPDATE shipments
                      SET current_lat = :lat,
                          current_lng = :lng,
-                         speed = 0,
+                         speed = :speed,
                          status = :status,
                          last_update = CURRENT_TIMESTAMP,
                          updated_at = CURRENT_TIMESTAMP
@@ -288,7 +297,8 @@ final class Engine
                 $shipmentUpdate->execute([
                     ':lat' => $targetLat,
                     ':lng' => $targetLng,
-                    ':status' => 'on_hold',
+                    ':speed' => max(0.0, (float)$control['control_speed']),
+                    ':status' => 'in_transit',
                     ':id' => $shipmentId,
                 ]);
             } else {

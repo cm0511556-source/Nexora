@@ -47,7 +47,7 @@
       const items = (j && Array.isArray(j.data)) ? j.data : [];
       if (!items.length) { list.innerHTML = '<div style="grid-column:1/-1;color:#64748b;font-size:.9rem;">No media yet.</div>'; return; }
       list.innerHTML = items.map(m => {
-        const src = '/assets/media/' + encodeURIComponent(m.file_path);
+        const src = '<?= asset('media/') ?>' + encodeURIComponent(m.file_path);
         const thumb = m.media_type === 'photo'
           ? '<img src="' + src + '" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:8px;background:#e2e8f0;">'
           : '<video src="' + src + '" style="width:100%;height:140px;object-fit:cover;border-radius:8px;background:#e2e8f0;" muted></video>';

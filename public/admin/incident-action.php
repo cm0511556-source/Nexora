@@ -12,7 +12,7 @@ Auth::requireAdmin();
 
 header('Content-Type: application/json; charset=utf-8');
 
-function respond(bool $success, string $message, array $data = [], int $code = 200): never {
+function respond(bool $success, string $message, array $data = [], int $code = 200): void {
     http_response_code($code);
     echo json_encode(['success' => $success, 'message' => $message, 'data' => $data], JSON_UNESCAPED_SLASHES);
     exit;
