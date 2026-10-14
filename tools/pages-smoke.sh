@@ -30,7 +30,7 @@ curl -s -b /tmp/nx-smoke.jar -c /tmp/nx-smoke.jar -o /dev/null \
 hit(){
   local url="$1" want="$2" label="$3"
   local c
-  c=$(curl -s -b /tmp/nx-smoke.jar -o /tmp/nx-smoke-page.html -w '%{http_code}' "$BASE/$url")
+  c=$(curl -s --no-keepalive -H 'Connection: close' -b /tmp/nx-smoke.jar -o /tmp/nx-smoke-page.html -w '%{http_code}' "$BASE/$url")
   if [ "$c" = "$want" ]; then ok "$label -> $c"; else no "$label -> $c (want $want)"; fi
   if [ -s /tmp/nx-smoke-page.html ] && grep -qi "Fatal error\|Parse error\|Uncaught" /tmp/nx-smoke-page.html; then
     no "$label rendered a PHP error message"

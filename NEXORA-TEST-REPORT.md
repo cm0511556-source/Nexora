@@ -9,6 +9,17 @@ to run the business day to day).
 **Verification method:** command-line only (`curl`, `php -l`, direct SQLite) — per
 instruction, no headless browser was installed or used. See §8.1.
 
+> **Re-verification (session resumed after a dropped connection):** a prior e2e run
+> was interrupted mid-flight and left one test shipment in the database. The suite's
+> own restore trap had not fired because the process was killed; a lingering run
+> later completed and restored the DB to its original baseline
+> (`shipments=2`, `customers=0`, `audit_log=0`, no `E2E` rows). All four suites were
+> then **re-run from scratch**: 29/29 + 26/26 + 23/23 + 15/15 = **93/93**, with the
+> database confirmed byte-identical (`md5sum`) after each. One flaky smoke-test curl
+> (`track-api.php` showed HTTP `000` while the server log recorded a correct `400`)
+> was hardened in `tools/pages-smoke.sh` with `--no-keepalive -H 'Connection: close'`;
+> the app code was not the cause and was not changed.
+
 ---
 
 ## 1. How the tests are run
