@@ -12,6 +12,12 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/config/config.php';
 
+// The chatbot is read-gated like track-api.php, so it needs the same session
+// that pre-track.php uses to remember a verified customer.
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
@@ -45,6 +51,20 @@ try {
 
     if (!$shipment) {
         nxChatOut(['reply' => 'I could not find that tracking number. Please double-check it.']);
+    }
+
+    // ---- Access gate (same rule as track-api.php) --------------------------
+    // Do not expose shipment data to an unverified visitor.
+    $hasContact = trim((string) $shipment['customer_email']) !== ''
+        || trim((string) $shipment['customer_phone']) !== '';
+    $tracker = nxTrackerVerified($tracking);
+    $isAdminPreview = nxIsAdminSession();
+
+    if ($hasContact && !$tracker && !$isAdminPreview) {
+        nxChatOut([
+            'reply' => 'Please verify your tracking details on the tracking page first, then ask again.',
+            'code'  => 'verify_required',
+        ], 403);
     }
 
     $sid = (int) $shipment['id'];

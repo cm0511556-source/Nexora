@@ -62,7 +62,7 @@ function hh(?string $v): string { return htmlspecialchars((string) $v, ENT_QUOTE
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="<?= asset('css/app.css') ?>">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0b1d3a">
 <link rel="icon" href="<?= asset('images/icon.svg') ?>" type="image/svg+xml">
 <style>

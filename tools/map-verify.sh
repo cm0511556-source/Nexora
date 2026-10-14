@@ -8,9 +8,13 @@ cd /workspace/quiet-curie
 
 BASE=http://127.0.0.1:8023
 PORT=8023
+DB=database/database.sqlite
+BACKUP=/tmp/nx-db-mapverify-backup.sqlite
+cp "$DB" "$BACKUP" || { echo "cannot back up DB"; exit 1; }
 php -S 127.0.0.1:$PORT -t public > /tmp/nx-mapcheck-server.log 2>&1 &
 SRV=$!
-trap 'kill "$SRV" 2>/dev/null' EXIT
+# Restore the DB too: the admin login below writes an audit_log row.
+trap 'kill "$SRV" 2>/dev/null; cp "$BACKUP" "$DB" 2>/dev/null' EXIT
 
 # wait until the server actually answers before logging in
 for i in $(seq 1 40); do

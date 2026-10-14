@@ -147,7 +147,7 @@ $initialTracking = $tracking;
   .nx-chat-form input { flex:1; border:0; padding:.7rem .85rem; font-family:inherit; font-size:.86rem; outline:none; }
   .nx-chat-form button { border:0; background:#f0b429; color:#0b1d3a; font-weight:700; padding:0 1rem; cursor:pointer; font-family:inherit; }
 </style>
-    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0b1d3a">
     <link rel="icon" href="<?= asset('images/icon.svg') ?>" type="image/svg+xml">
     <script src="<?= asset('js/nx-labels.js') ?>"></script>

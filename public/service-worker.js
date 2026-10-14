@@ -2,7 +2,7 @@
    Static assets are cache-first; pages and APIs always try the network first. */
 'use strict';
 
-var CACHE = 'nexora-shell-v1';
+var CACHE = 'nexora-shell-v2';
 var SHELL = [
   '/',
   '/track.php',
@@ -13,7 +13,7 @@ var SHELL = [
   '/assets/vendor/maplibre/maplibre-gl.css',
   '/assets/vendor/maplibre/maplibre-gl.js',
   '/assets/images/icon.svg',
-  '/manifest.webmanifest'
+  '/manifest.json'
 ];
 
 self.addEventListener('install', function (event) {
