@@ -1,0 +1,1348 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__, 2) . '/config/config.php';
+require_once BASE_PATH . '/app/Auth.php';
+use VibrantHub\Auth;
+Auth::requireAdmin();
+function hh(?string $v): string { return htmlspecialchars((string)$v, ENT_QUOTES); }
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Manual — Nexora Logistics</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/app.css">
+<style>
+  body { background: #f1f5f9; }
+  .nx-manual-layout { display: grid; grid-template-columns: 260px 1fr; gap: 1.5rem; max-width: 1300px; margin: 1rem auto; padding: 0 1rem; }
+  @media (max-width: 900px) { .nx-manual-layout { grid-template-columns: 1fr; } }
+  .nx-manual-toc { position: sticky; top: 80px; align-self: start; background: #fff; border-radius: 14px; padding: 1.25rem; box-shadow: 0 8px 24px rgba(11,29,58,.08); max-height: calc(100vh - 100px); overflow-y: auto; }
+  @media (max-width: 900px) { .nx-manual-toc { position: static; max-height: none; } }
+  .nx-manual-toc h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: #64748b; margin: 1rem 0 .5rem; font-weight: 800; }
+  .nx-manual-toc a { display: block; padding: .35rem .5rem; color: #334155; text-decoration: none; font-size: .88rem; border-radius: 6px; }
+  .nx-manual-toc a:hover { background: #f1f5f9; color: #0b1d3a; }
+  .nx-manual-body { background: #fff; border-radius: 14px; padding: 2rem; box-shadow: 0 8px 24px rgba(11,29,58,.08); }
+  .nx-manual-body h1 { color: #0b1d3a; margin: 0 0 .25rem; font-size: 1.8rem; }
+  .nx-manual-body .lead { color: #475569; font-size: 1.02rem; margin: 0 0 2rem; line-height: 1.6; }
+  .nx-manual-body h2 { color: #0b1d3a; border-bottom: 2px solid #f0b429; padding-bottom: .4rem; margin-top: 2.5rem; font-size: 1.35rem; }
+  .nx-manual-body h3 { color: #132a52; margin-top: 1.75rem; font-size: 1.05rem; }
+  .nx-manual-body h4 { color: #475569; margin: 1.25rem 0 .5rem; font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; }
+  .nx-manual-body p, .nx-manual-body li { color: #334155; line-height: 1.65; font-size: .95rem; }
+  .nx-manual-body ul, .nx-manual-body ol { padding-left: 1.4rem; }
+  .nx-manual-body code { background: #f1f5f9; padding: 2px 6px; border-radius: 5px; font-family: ui-monospace, Menlo, monospace; font-size: .85em; color: #0b1d3a; }
+  .nx-manual-body table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+  .nx-manual-body th, .nx-manual-body td { padding: .65rem .75rem; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+  .nx-manual-body th { background: #f8fafc; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; font-weight: 800; }
+  .nx-manual-body .callout { padding: 1rem 1.15rem; border-radius: 10px; margin: 1rem 0; font-size: .92rem; line-height: 1.6; }
+  .nx-manual-body .callout.info { background: rgba(37,99,235,.08); border-left: 4px solid #2563eb; }
+  .nx-manual-body .callout.warn { background: rgba(245,158,11,.09); border-left: 4px solid #f59e0b; }
+  .nx-manual-body .callout.ok { background: rgba(22,163,74,.09); border-left: 4px solid #22c55e; }
+  .nx-manual-body .callout.err { background: rgba(220,38,38,.08); border-left: 4px solid #dc2626; }
+  .nx-manual-body .btn-row { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; }
+  .nx-manual-body .badge { display: inline-block; padding: .15rem .6rem; border-radius: 999px; font-size: .75rem; font-weight: 700; background: rgba(240,180,41,.15); color: #78350f; }
+  .nx-manual-body .kbd { display: inline-block; padding: 2px 8px; border-radius: 6px; background: #0b1d3a; color: #fff; font-size: .75rem; font-weight: 700; font-family: ui-monospace, Menlo, monospace; }
+  .nx-manual-footer { text-align: center; margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: .82rem; }
+</style>
+</head>
+<body>
+<header class="navbar">
+  <a href="/admin/index.php" class="logo" style="text-decoration:none;color:inherit;">
+    <span class="logo-badge">N</span><span class="logo-text">Nexora Admin</span>
+  </a>
+  <nav class="nav-links">
+    <a href="/admin/index.php">Dashboard</a>
+    <a href="/admin/shipments-hub.php">Shipments</a>
+    <a href="/admin/people.php">People</a>
+    <a href="/admin/content.php">Content</a>
+    <a href="/admin/settings.php">Settings</a>
+    <a href="/admin/manual.php" class="active">📖 Manual</a>
+    <a href="/" target="_blank" rel="noopener" style="color:#ffd166 !important;">🌐 View Site</a>
+    <a href="/admin/login.php?logout=1">Logout</a>
+  </nav>
+</header>
+
+<div class="nx-manual-layout">
+  <aside class="nx-manual-toc">
+    <h3>Getting Started</h3>
+    <a href="#overview">Overview</a>
+    <a href="#login">Logging in</a>
+    <a href="#dashboard">The dashboard</a>
+
+    <h3>Shipments</h3>
+    <a href="#create">Create a shipment</a>
+    <a href="#manage">Manage shipments</a>
+    <a href="#operations">Tracking operations</a>
+    <a href="#fleet">Fleet View</a>
+    <a href="#control">Shipment Control</a>
+    <a href="#route">Route Editor</a>
+
+    <h3>People</h3>
+    <a href="#lookups">Tracking lookups</a>
+    <a href="#testimonials">Testimonials</a>
+
+    <h3>Content</h3>
+    <a href="#site-content">Site content</a>
+    <a href="#messages">Customer messages</a>
+
+    <h3>Settings</h3>
+    <a href="#carriers">Carriers</a>
+    <a href="#diagnostics">Diagnostics</a>
+
+    <h3>Reference</h3>
+    <a href="#popups">Validation &amp; popups</a>
+    <a href="#appendix-a">Appendix A · Delay units</a>
+    <a href="#appendix-b">Appendix B · City coordinates</a>
+    <a href="#appendix-c">Appendix C · Map behaviour</a>
+    <a href="#appendix-d">Appendix D · Public vs Admin</a>
+    <a href="#appendix-e">Appendix E · File map</a>
+  </aside>
+
+  <main class="nx-manual-body">
+    <h1>Nexora Logistics — Admin Manual</h1>
+    <p class="lead">Everything you can do from the admin, in plain English. Every page, every button, every form, every message. If something feels unclear, it's a bug in this manual — tell the developer.</p>
+
+    <h2 id="overview">Overview</h2>
+    <p>The Nexora Logistics admin has <strong>5 top-level sections</strong>: <span class="badge">Dashboard</span> <span class="badge">Shipments</span> <span class="badge">People</span> <span class="badge">Content</span> <span class="badge">Settings</span>. Everything you do belongs to exactly one of them. Nothing is hidden.</p>
+
+    <div class="callout info">
+      <strong>Rule of thumb:</strong> if it moves goods, it's in <em>Shipments</em>. If it involves a customer, it's in <em>People</em>. If it's a word the public sees, it's in <em>Content</em>. If it's a partner or a system check, it's in <em>Settings</em>.
+    </div>
+
+    <h2 id="login">Logging in</h2>
+    <p>Go to <code>/admin/login.php</code>. Enter the admin email and password you were given. Sessions last until you tap <strong>Logout</strong> or close the browser.</p>
+
+    <div class="callout warn">
+      <strong>Never share the admin URL with customers.</strong> The public site shows a discreet <em>Staff</em> link in the footer — that is the only public hint the admin exists. Customers do not otherwise see any admin link.
+    </div>
+
+    <h2 id="dashboard">The dashboard</h2>
+    <p>Four big tiles — one per top-level section (Shipments, People, Content, Settings) — plus a scroll-down reference of <em>"How each page works"</em> that lists every sub-page and its purpose.</p>
+
+    <table>
+      <thead><tr><th>Tile</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>📦 Shipments</td><td>Create, manage, monitor and control every shipment.</td></tr>
+        <tr><td>👥 People</td><td>Track who looked at what, and manage the customer reviews on the homepage.</td></tr>
+        <tr><td>📝 Content</td><td>Edit every word your customers see on the public site and on the tracking page.</td></tr>
+        <tr><td>⚙️ Settings</td><td>Partner carriers and system diagnostics.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout ok">
+      <strong>Live counters</strong> on the public homepage update from real data every few seconds. They never stop counting — so the site always looks alive.
+    </div>
+
+    <h2 id="create">Creating a shipment</h2>
+    <p>From the dashboard tap <strong>Shipments → Create a Shipment</strong>. Or go directly to <code>/admin/shipments.php</code>.</p>
+
+    <h3>What each field means</h3>
+    <table>
+      <thead><tr><th>Field</th><th>What to enter</th></tr></thead>
+      <tbody>
+        <tr><td>Tracking number</td><td>Your own reference. Must be unique. Common pattern: <code>NX-2026-0001</code>.</td></tr>
+        <tr><td>Customer name / email / phone</td><td>Used for the confirmation popup and for the pre-tracking form the customer fills the first time they track.</td></tr>
+        <tr><td>Package description</td><td>What is inside. Customers see this on the tracking page. Example: <em>"3 boxes of electronics, 22 kg"</em>.</td></tr>
+        <tr><td>Transport type</td><td>Overall mode — Truck, Flight, Ship, Train, Van, Bike or Pedestrian. Used to pick the map icon when the shipment is on a single-leg route.</td></tr>
+        <tr><td>Vehicle name / number</td><td>Any label. Example: <em>"Air way · BA-256"</em>. Shows in the HUD and shipment card.</td></tr>
+        <tr><td>Status</td><td>Starting status. Usually <em>Pending</em> until the shipment physically leaves.</td></tr>
+        <tr><td>Origin / Destination</td><td>City or place. Full names help the flag icon pick the correct country.</td></tr>
+        <tr><td>Origin / Destination lat/lng</td><td>Decimal coordinates. See <a href="#appendix-b">Appendix B</a> for the exact values of common cities. Western hemisphere = negative longitude.</td></tr>
+        <tr><td>Initial speed (km/h)</td><td>Leave at 0 unless the shipment is already moving.</td></tr>
+        <tr><td>Estimated delivery</td><td>Date and time. Format <code>YYYY-MM-DD HH:MM</code>. Extend automatically when you record a delay.</td></tr>
+        <tr><td>Photos &amp; videos</td><td>Optional. Pick from your phone. These appear on the public tracking page.</td></tr>
+        <tr><td>Carrier / partner</td><td>Optional. Assign a partner company — a small logo chip appears next to the tracking number.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout info">
+      <strong>Tip:</strong> you can save and keep adding more photos later — the shipment doesn't need to be created with photos.
+    </div>
+
+    <h2 id="manage">Managing shipments</h2>
+    <p><strong>Shipments → Manage All</strong> — a searchable list of every shipment you've created.</p>
+    <ul>
+      <li><strong>Search bar</strong> — type any part of the tracking number, customer name, email, or city.</li>
+      <li><strong>Status filter</strong> — narrow to in-transit, held, delivered, etc.</li>
+      <li><strong>Each row shows</strong> — tracking number (tap to open shipment control), customer, origin → destination, transport, status, last update, carrier chip if assigned.</li>
+      <li><strong>Actions column</strong> — <em>Controls</em> opens the tracking dashboard, <em>Track</em> opens the customer view.</li>
+    </ul>
+
+    <h2 id="operations">Tracking Operations</h2>
+    <p><strong>Shipments → Tracking Operations</strong> — a single screen to see every active shipment's status and run the day-to-day controls (start, pause, resume) without opening each shipment.</p>
+    <p>Use this when you're managing many shipments at once and want to see who's moving, who's stuck, and who needs attention.</p>
+
+    <h2 id="fleet">Fleet View</h2>
+    <p><strong>Shipments → Fleet View</strong> — every active shipment as a marker on one live world map.</p>
+    <ul>
+      <li><strong>Coloured markers</strong> — gold = moving, red = flagged (on hold / seized / delayed), green = delivered.</li>
+      <li><strong>Search box</strong> — filter to a single tracking number, customer, city, or carrier.</li>
+      <li><strong>Status dropdown</strong> — show only in-transit, only held, etc.</li>
+      <li><strong>Tap any marker</strong> — a popup with the full details, plus buttons for <em>Open</em>, <em>Route</em>, and <em>Public view</em>.</li>
+      <li><strong>Refresh button</strong> — reload the map with the latest data.</li>
+    </ul>
+
+    <div class="callout info">
+      <strong>When to use Fleet View:</strong> you've just launched 5 new shipments and want to see all of them on one screen. Or a customer calls asking about their package — search their tracking number and jump straight in.
+    </div>
+
+    <h2 id="control">Shipment Control — the main workspace</h2>
+    <p>This is where you actually run a shipment. Six tabs, each with a clear job.</p>
+
+    <h3>Summary tab</h3>
+    <p>The at-a-glance view: current status, speed, distance travelled / remaining, ETA, customer, transport, vehicle, last update. Any change you make in another tab updates this.</p>
+
+    <h3>Live Map tab</h3>
+    <ul>
+      <li>Real Mapbox satellite map with the shipment's position, the origin flag pin, the destination flag pin, and all waypoints.</li>
+      <li>The route line is colour-coded per leg — gold for air, blue for sea, grey for road, pink for bike, dark for pedestrian.</li>
+      <li><strong>Tap the vehicle marker</strong> to see a popup with status, speed, last update.</li>
+      <li><strong>⛶ Fullscreen</strong> — bottom-right of the map.</li>
+      <li>The whole view is the same as the customer sees, so what you check here is exactly what your customer sees.</li>
+    </ul>
+
+    <h3>Movement tab</h3>
+    <ul>
+      <li><strong>Speed (km/h)</strong> — how fast the tracking engine moves the shipment.</li>
+      <li><strong>Tracking Mode</strong> — Simulation (typical) or a real feed if connected.</li>
+      <li><strong>Start / Pause / Resume buttons</strong> — start moves the shipment forward, pause freezes it.</li>
+      <li><strong>Save Movement Settings</strong> — applies the speed + mode to the tracking engine.</li>
+      <li><strong>Current Position</strong> — manual lat/lng override. Type new values and tap <strong>Save Position</strong> to teleport the marker (useful for correcting a jump or setting a manual fix).</li>
+    </ul>
+
+    <div class="callout warn">
+      <strong>Speed rules:</strong> speed must be ≥ 0. A shipment in transit must have speed &gt; 0. Don't exceed 2,000 km/h — the validator will refuse.
+    </div>
+
+    <h3>History tab (Tracking Timeline)</h3>
+    <p>Every event the shipment has ever had — created, departed, cleared customs, held, released, delivered. Shows the 5 most recent. Tap <strong>Show all (N more)</strong> to see the rest. The wording here is what the customer sees. To change the wording, go to <strong>Content → Customer Messages</strong>.</p>
+
+    <h3>Issues tab (Holds &amp; Incidents)</h3>
+    <p>Where you record anything that stops, delays, or flags the shipment.</p>
+    <ul>
+      <li><strong>Current issues at the top</strong> — each active hold with a <em>Clear hold</em> button. If more than 2, they collapse behind a "Show all" button.</li>
+      <li><strong>Report something new</strong> — pick what happened from the dropdown:
+        <ul>
+          <li><strong>Hold the shipment</strong> — Customs inspection, Security screening, Seized by authority, Compliance issue</li>
+          <li><strong>Delay / operational</strong> — Weather delay, Vehicle breakdown, Damaged packaging, Port congestion</li>
+          <li><strong>Progress</strong> — Out for delivery, Delivered</li>
+          <li><strong>Release</strong> — Clear all active holds</li>
+        </ul>
+      </li>
+      <li><strong>Delay amount (optional)</strong> — type a number, pick Minutes / Hours / Days / Weeks / Months. This extends the ETA automatically.</li>
+      <li><strong>Note shown to the customer</strong> — a short message. Example: <em>"Awaiting customs clearance"</em>.</li>
+      <li><strong>Record incident</strong> — saves everything and pushes the shipment to the correct status.</li>
+      <li><strong>📷 Attach photos / videos</strong> — opens an inline uploader right there. Useful for customs evidence, damage photos, proof of delivery.</li>
+    </ul>
+
+    <h3>Media tab (Photos &amp; Videos)</h3>
+    <p>All media attached to this shipment, in the order you uploaded it. Tap any photo to open it in a lightbox. Each item has a caption field, a Public / Private toggle (only Public items are seen by the customer), and a Delete button.</p>
+
+    <h2 id="route">Route Editor — multi-modal journeys</h2>
+    <p><strong>Summary → Edit route</strong> (or the route editor link on the live map tab). Opens <code>/admin/shipment-route.php?id=X</code>.</p>
+    <p>A shipment can have <strong>as many stops as you need</strong>, and each leg between two stops can be a different transport mode. That's how a real Singapore-to-doorstep journey works.</p>
+
+    <h3>Stops you can add</h3>
+    <table>
+      <thead><tr><th>Type</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td>origin</td><td>The pickup address — start of journey</td></tr>
+        <tr><td>airport</td><td>Departure / arrival airport</td></tr>
+        <tr><td>port</td><td>Sea freight port</td></tr>
+        <tr><td>rail_hub</td><td>Train station or rail terminal</td></tr>
+        <tr><td>warehouse</td><td>Storage or consolidation point</td></tr>
+        <tr><td>office</td><td>Your local office or partner branch</td></tr>
+        <tr><td>depot</td><td>Regional distribution centre</td></tr>
+        <tr><td>home</td><td>Customer's address (last-mile target)</td></tr>
+        <tr><td>checkpoint</td><td>Customs or inspection point</td></tr>
+        <tr><td>destination</td><td>The final doorstep / handover</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Leg types (between two stops)</h3>
+    <table>
+      <thead><tr><th>Leg</th><th>Icon &amp; colour on map</th></tr></thead>
+      <tbody>
+        <tr><td>air</td><td>✈️ gold dashed</td></tr>
+        <tr><td>sea</td><td>🚢 blue dashed</td></tr>
+        <tr><td>rail</td><td>🚆 green dashed</td></tr>
+        <tr><td>truck</td><td>🚚 grey dashed</td></tr>
+        <tr><td>van</td><td>🚐 purple dashed</td></tr>
+        <tr><td>bike</td><td>🏍️ pink dashed</td></tr>
+        <tr><td>ped</td><td>🚶 dark dashed</td></tr>
+      </tbody>
+    </table>
+
+    <h3>How to use the editor</h3>
+    <ol>
+      <li>Tap <strong>+ Add a stop</strong></li>
+      <li>Tap on the map where the stop is — lat/lng fields fill automatically</li>
+      <li>Enter the name, type, and the leg type that <em>arrives</em> at this stop</li>
+      <li>Tap <strong>Save &amp; add another</strong> to add the next stop without reloading</li>
+      <li>When all stops are in, tap <strong>🛠 Rebuild route line</strong> — the map now shows each leg in its own colour</li>
+      <li>The customer sees the same multi-coloured route on the public tracking page</li>
+    </ol>
+
+    <div class="callout ok">
+      <strong>See <a href="#worked-example">the full worked example below</a></strong> — Singapore to New York City with 6 stops, customs inspection, weather delay, editing the customer text, and final delivery.
+    </div>
+
+    <h2 id="lookups">People → Tracking Lookups</h2>
+
+    <p>Every time a customer types a tracking number into the public site, they have to fill in a small form first: their name, email, and phone number. Those details are saved here. You do not need to chase the customer for contact info — they gave it up front.</p>
+
+    <h3>Why this matters in real life</h3>
+    <p>Imagine you're shipping to 40 different customers this week. One of them calls your office angry because their parcel is 3 days late. You don't have their phone number on file from the shipment, but you did get it when they last checked tracking. You open <strong>People → Tracking Lookups</strong>, search their name, and the number is right there.</p>
+
+    <h3>What you can do here</h3>
+    <ul>
+      <li><strong>Search</strong> by any word in the tracking number, name, email, or phone.</li>
+      <li><strong>Tap <em>View</em> on a row</strong> to see the full record: IP address, device info, and a list of every shipment this same email has ever tracked.</li>
+      <li><strong>Export CSV</strong> — downloads the whole list. Open it in Google Sheets or Excel. Useful for building a mailing list or sending a batch update email.</li>
+    </ul>
+
+    <h3>Real scenario</h3>
+    <p>A customer emails you: <em>"Where is my parcel?"</em> but doesn't give a tracking number.</p>
+    <ol>
+      <li>Open Tracking Lookups</li>
+      <li>Search their email address</li>
+      <li>The list shows every shipment that email has looked up</li>
+      <li>Tap the shipment row → opens the tracking control for it</li>
+      <li>You answer with the exact status — no back-and-forth</li>
+    </ol>
+
+    <h2 id="testimonials">People → Testimonials</h2>
+
+    <p>The reviews shown on the public homepage in the sliding carousel. You choose which ones are public. You write them (from real customer quotes you received by email, WhatsApp, or in person), add a photo, and pick the star rating.</p>
+
+    <h3>Adding a testimonial — step by step</h3>
+    <ol>
+      <li>Tap <strong>People → Testimonials</strong></li>
+      <li>Fill in:
+        <ul>
+          <li><strong>Author name</strong> — "Sarah Chen" (no fake names — use real people or clear company names)</li>
+          <li><strong>Country</strong> — "Singapore"</li>
+          <li><strong>Role</strong> — "Operations Manager, Meridian Imports"</li>
+          <li><strong>Rating</strong> — 1 to 5 stars</li>
+          <li><strong>Photo</strong> — either a URL or upload from your phone (≤ 512 KB)</li>
+          <li><strong>Review text</strong> — the actual quote</li>
+          <li><strong>Sort order</strong> — lower numbers show first</li>
+          <li><strong>Published</strong> — tick to make it live</li>
+        </ul>
+      </li>
+      <li>Tap <strong>Add testimonial</strong></li>
+    </ol>
+
+    <div class="callout warn">
+      <strong>Legal note:</strong> only publish testimonials you have permission to publish. Using a customer's name and photo without consent can get you in trouble. If in doubt, use just a first name and no photo.
+    </div>
+
+    <h2 id="site-content">Content → Site Content</h2>
+
+    <p>Every word the public sees on the homepage, grouped by section: Hero, Services, Numbers, Contact, Footer.</p>
+
+    <h3>Why this is powerful</h3>
+    <p>If you want to change the headline from <em>"Ship Worldwide with Nexora Logistics"</em> to <em>"Ship Faster with Nexora Logistics"</em>, you don't need the developer. Open Site Content, find the field, edit it, save. The homepage updates on the next page load.</p>
+
+    <h3>Real examples you can change today</h3>
+    <table>
+      <thead><tr><th>You want to change…</th><th>Find this field</th></tr></thead>
+      <tbody>
+        <tr><td>The big headline at the top</td><td>Hero → <em>Headline (before the highlight)</em> and <em>Headline (highlight)</em></td></tr>
+        <tr><td>The tagline under it</td><td>Hero → <em>Tagline pill</em></td></tr>
+        <tr><td>The button text "Track Shipment"</td><td>Hero → <em>Primary button text</em></td></tr>
+        <tr><td>The service titles (Air Freight / Ocean Freight…)</td><td>Services → each <em>Service N title</em></td></tr>
+        <tr><td>The number labels ("Shipments delivered")</td><td>Numbers → <em>Number N label</em></td></tr>
+        <tr><td>The bottom footer line</td><td>Footer → <em>Footer text</em></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout info">
+      <strong>Live counters are automatic:</strong> "Shipments delivered", "Countries served", "Happy clients", and "Average rating" read from your real data. You don't type them.
+    </div>
+
+    <h2 id="messages">Content → Customer Messages</h2>
+
+    <p>Whenever something happens to a shipment — customs hold, weather delay, out for delivery, delivered — the customer sees a short message on the tracking page. Those messages are written here, in your own words.</p>
+
+    <h3>How the system works</h3>
+    <p>When you record an incident, the system looks up its <em>admin key</em> (for example <code>customs inspection</code>) and shows the matching <em>customer message</em>. Change the message here → the customer sees the new wording on their next page load.</p>
+
+    <h3>Real example — softening a scary customs message</h3>
+    <p>Default wording: <em>"Your shipment is being inspected by customs authorities."</em></p>
+    <p>You want a less scary version. Open Customer Messages, find the row <code>customs inspection</code>, edit the description to:</p>
+    <p><em>"We're working with customs to complete a routine check. Your shipment is safe and we'll update you as soon as it clears."</em></p>
+    <p>Save. Every customer whose shipment is in customs now sees that message — without any code change.</p>
+
+    <h3>Transport popups</h3>
+    <p>The same idea but for map popups. Tap on a plane marker → you see the message defined here for <code>air</code>. Tap a ship → the message for <code>sea</code>. Change these if you want to sound less formal, or add extra context like typical travel times.</p>
+
+    <h2 id="carriers">Settings → Carriers</h2>
+
+    <p>Companies you partner with to move goods. Real examples: DHL, FedEx, a local freight forwarder, your own courier team.</p>
+
+    <h3>When to add a carrier</h3>
+    <ul>
+      <li>You hand a shipment to a partner airline or shipping line</li>
+      <li>A local courier handles the last mile</li>
+      <li>You want the customer to see "Handled by DHL" on their tracking page</li>
+      <li>You want a small carrier chip next to the tracking number in the admin list</li>
+    </ul>
+
+    <h3>Adding one</h3>
+    <ol>
+      <li>Name — "Nexora Express"</li>
+      <li>Code — short, 2–4 letters. "NEX"</li>
+      <li>Contact email / phone — optional, for your records</li>
+      <li>Tracking URL — link to the carrier's own tracking page. Use <code>{tracking}</code> where the number goes. Example: <code>https://www.dhl.com/track?awb={tracking}</code></li>
+      <li>Logo — either paste a URL or upload from your phone (≤ 512 KB, PNG/JPG/WEBP/SVG)</li>
+      <li>Active — tick to enable. Untick to hide from the shipment dropdown without deleting</li>
+    </ol>
+
+    <h3>Assign a carrier to a shipment</h3>
+    <ol>
+      <li>Create a new shipment (or edit an existing one)</li>
+      <li>Scroll to <strong>Carrier / partner</strong></li>
+      <li>Pick from the dropdown</li>
+      <li>Save — the carrier chip appears next to the tracking number</li>
+    </ol>
+
+    <h2 id="diagnostics">Settings → System Diagnostics</h2>
+
+    <p>Only needed if something looks broken. Shows whether the session system is running, the database is reachable, and PHP is healthy. If a page acts strangely, open Diagnostics first — it tells you if the problem is on the server side.</p>
+
+    <h2 id="worked-example">Full worked example — Singapore → New York City</h2>
+
+    <p>This is the whole life of one shipment, from the moment you decide to move it to the moment the customer signs for it. Follow along and you'll know how to run any shipment afterwards.</p>
+
+    <h3>Scenario</h3>
+    <ul>
+      <li>A customer in <strong>New York City</strong> (Brooklyn) ordered a crate of specialty tea from <strong>Singapore</strong></li>
+      <li>Weight: 18 kg · Dimensions: 60 × 40 × 40 cm</li>
+      <li>Promised delivery window: <strong>14 calendar days</strong></li>
+      <li>Agreed service: standard air freight with last-mile by courier</li>
+    </ul>
+
+    <h3>Step 1 — Create the shipment</h3>
+    <p>Open <strong>Shipments → Create a Shipment</strong> and enter:</p>
+    <table>
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Tracking number</td><td><code>NX-2026-0101</code></td></tr>
+        <tr><td>Customer name</td><td>Michael Chen</td></tr>
+        <tr><td>Customer email</td><td>michael.chen@example.com</td></tr>
+        <tr><td>Customer phone</td><td>+1 347 555 0188</td></tr>
+        <tr><td>Package description</td><td>1 wooden crate, 18 kg, specialty tea</td></tr>
+        <tr><td>Transport type</td><td>✈️ Flight</td></tr>
+        <tr><td>Vehicle name</td><td>Flight</td></tr>
+        <tr><td>Vehicle number</td><td>SQ-026</td></tr>
+        <tr><td>Status</td><td>Pending</td></tr>
+        <tr><td>Origin</td><td>Singapore</td></tr>
+        <tr><td>Origin lat</td><td>1.3521</td></tr>
+        <tr><td>Origin lng</td><td>103.8198</td></tr>
+        <tr><td>Destination</td><td>New York City, United States</td></tr>
+        <tr><td>Destination lat</td><td>40.7128</td></tr>
+        <tr><td>Destination lng</td><td>-74.0060</td></tr>
+        <tr><td>Initial speed</td><td>0</td></tr>
+        <tr><td>Estimated delivery</td><td>2026-11-14 18:00</td></tr>
+        <tr><td>Photos &amp; videos</td><td>Snap 2 photos of the packed crate</td></tr>
+        <tr><td>Carrier / partner</td><td>Nexora Express</td></tr>
+      </tbody>
+    </table>
+    <p>Tap <strong>Create Shipment</strong>. The shipment exists. Status is Pending.</p>
+
+    <div class="callout info">
+      <strong>Note:</strong> NYC longitude is <strong>negative</strong> (-74.0060) because it's west of Greenwich. Singapore longitude is positive. If you enter NYC as +74, the map will draw it somewhere in Asia and every customer will see the wrong route.
+    </div>
+
+    <h3>Step 2 — Build the multi-modal route</h3>
+    <p>Real journeys have many stops. This shipment has <strong>6 stops</strong> — one each for pickup, airport, arrival, distribution, courier, and doorstep.</p>
+
+    <p>Open the shipment → Summary tab → tap <strong>Edit route</strong>. Now add the stops in order:</p>
+
+    <table>
+      <thead><tr><th>#</th><th>Stop name</th><th>Type</th><th>Latitude</th><th>Longitude</th><th>Leg to this stop</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Singapore warehouse, Tuas</td><td>origin</td><td>1.2942</td><td>103.6376</td><td>truck</td></tr>
+        <tr><td>2</td><td>Singapore Changi Airport (SIN)</td><td>airport</td><td>1.3644</td><td>103.9915</td><td>truck</td></tr>
+        <tr><td>3</td><td>New York JFK Airport (JFK)</td><td>airport</td><td>40.6413</td><td>-73.7781</td><td><strong>air</strong> ← the flight</td></tr>
+        <tr><td>4</td><td>Brooklyn Distribution Depot</td><td>depot</td><td>40.6782</td><td>-73.9442</td><td><strong>truck</strong></td></tr>
+        <tr><td>5</td><td>Customer street — Park Slope</td><td>home</td><td>40.6710</td><td>-73.9814</td><td><strong>van</strong></td></tr>
+        <tr><td>6</td><td>Customer doorstep — Apt 4B</td><td>destination</td><td>40.6712</td><td>-73.9816</td><td><strong>bike</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>For each one: tap <strong>+ Add a stop</strong>, tap the map where the stop is, fill in the details, and choose the leg type. Tap <strong>Save &amp; add another</strong> to keep going without reloading.</p>
+
+    <p>When all 6 are in, tap <strong>🛠 Rebuild route line</strong>. The map now shows a gold air arc from Singapore to JFK, then grey and purple land legs in New York.</p>
+
+    <div class="callout ok">
+      <strong>Optional but nice:</strong> add a 7th stop right before the doorstep, type <code>ped</code>, so the customer sees the courier walk the last few metres. It looks real on the map.
+    </div>
+
+    <h3>Step 3 — Start the journey</h3>
+    <p>Open the <strong>Movement tab</strong>:</p>
+    <ul>
+      <li>Speed → 850 km/h (typical long-haul cruise; the engine scales this to real wall-clock time so the shipment progresses naturally)</li>
+      <li>Tracking mode → Simulation</li>
+      <li>Tap <strong>Save Movement Settings</strong></li>
+      <li>Tap <strong>▶ Start Tracking</strong></li>
+    </ul>
+    <p>The vehicle marker starts moving. Customer can already open the public tracking page and see the plane crossing the Pacific.</p>
+
+    <h3>Step 4 — Picked up and trucked to Changi</h3>
+    <p>Customer-facing timeline gets events as the shipment moves. You can help the story along by recording events. Open the <strong>Issues tab</strong> and choose from the dropdown:</p>
+    <ul>
+      <li><strong>Out for delivery</strong> → customise the note to <em>"Collected from Singapore warehouse"</em></li>
+    </ul>
+    <p>Actually the cleanest way to describe a specific milestone is to use the <strong>Operational Event</strong> form on the Movement tab:</p>
+    <ul>
+      <li>Event type → <em>Picked Up</em></li>
+      <li>Location → <em>Singapore Tuas Warehouse</em></li>
+      <li>Latitude → 1.2942</li>
+      <li>Longitude → 103.6376</li>
+      <li>Description → <em>Shipment collected and sealed. Departing for Changi Airport.</em></li>
+      <li>Tap <strong>Record Operational Event</strong></li>
+    </ul>
+
+    <h3>Step 5 — Arrives at Changi, boards the plane</h3>
+    <p>Record another event:</p>
+    <ul>
+      <li>Event type → <em>Departed</em></li>
+      <li>Location → <em>Singapore Changi Airport</em></li>
+      <li>Latitude → 1.3644</li>
+      <li>Longitude → 103.9915</li>
+      <li>Description → <em>Loaded on flight SQ-026 to New York JFK.</em></li>
+    </ul>
+
+    <h3>Step 6 — Something goes wrong: Hong Kong airspace closure</h3>
+    <p>Three days in, a typhoon closes the original routing. The flight has to reroute via Tokyo, adding 2 days. Here's exactly what to do:</p>
+    <ol>
+      <li>Open the shipment's <strong>Issues tab</strong></li>
+      <li>Under <em>Report something new</em>, choose <strong>Weather delay</strong></li>
+      <li>Delay amount → <strong>2</strong>, unit → <strong>Days</strong></li>
+      <li>Note shown to customer → <em>"Typhoon rerouting. Arrival pushed by 2 days. Our apologies."</em></li>
+      <li>Tap <strong>Record incident</strong></li>
+    </ol>
+
+    <p>The system now:</p>
+    <ul>
+      <li>Extends the ETA by 2 days automatically</li>
+      <li>Adds an event to the timeline</li>
+      <li>Shows the customer message you wrote</li>
+      <li>Keeps the shipment moving (weather delays don't pause it)</li>
+    </ul>
+
+    <div class="callout warn">
+      <strong>Delay vs hold:</strong> a weather delay is an operational hiccup — the shipment keeps moving, just slower. A customs hold <em>stops</em> movement. Choose the right one.
+    </div>
+
+    <h3>Step 7 — Lands at JFK</h3>
+    <p>Record the arrival:</p>
+    <ul>
+      <li>Event type → <em>Arrived</em></li>
+      <li>Location → <em>New York JFK International Airport</em></li>
+      <li>Latitude → 40.6413</li>
+      <li>Longitude → -73.7781</li>
+      <li>Description → <em>Cleared US customs. Handed to local ground team.</em></li>
+    </ul>
+
+    <h3>Step 8 — US customs wants a look</h3>
+    <p>JFK customs selects the crate for inspection. The shipment is now on hold.</p>
+    <ol>
+      <li>Open Issues tab</li>
+      <li>Choose <strong>Customs inspection</strong></li>
+      <li>Delay amount → leave at 0 for now (you don't know how long it will take)</li>
+      <li>Note shown to customer → <em>"Your shipment is being inspected by US customs. We'll notify you the moment it clears."</em></li>
+      <li>Tap <strong>Record incident</strong></li>
+    </ol>
+
+    <p>The system now:</p>
+    <ul>
+      <li>Puts a mandatory hold on the shipment — movement stops</li>
+      <li>Changes the visible status to <strong>On hold</strong></li>
+      <li>Red pulsing marker on the admin and public maps</li>
+      <li>Timeline shows "Customs inspection in progress" with your customer note</li>
+      <li>Blocks the Start / Resume buttons until the hold is cleared</li>
+    </ul>
+
+    <p>Meanwhile, upload the customs form photo as evidence:</p>
+    <ul>
+      <li>Tap <strong>📷 Attach photos / videos</strong> (right under Record incident)</li>
+      <li>Pick the photo of the customs form from your phone</li>
+      <li>Context → <em>Customs documentation</em></li>
+      <li>Tap <strong>Upload</strong></li>
+    </ul>
+
+    <h3>Step 9 — Customs clears it</h3>
+    <p>Two days later, US customs releases the crate.</p>
+    <ol>
+      <li>Open Issues tab</li>
+      <li>Find the active hold at the top — <em>"Customs inspection in progress"</em></li>
+      <li>Type the clearance note → <em>"Released by CBP officer badge 44921. Form CBP-7513 signed."</em></li>
+      <li>Tap <strong>Clear hold</strong></li>
+    </ol>
+    <p>The shipment returns to <strong>In transit</strong>. Now tap <strong>▶ Resume</strong> on the Movement tab to restart the engine. Movement continues toward Brooklyn.</p>
+
+    <h3>Step 10 — Last mile in Brooklyn</h3>
+    <p>Now it's genuinely close. Update the status by recording events:</p>
+    <ul>
+      <li>Event → <em>Departed</em> from JFK area to Brooklyn Depot</li>
+      <li>Event → <em>At depot, out for delivery</em> when the van collects it</li>
+      <li>Event → <em>Out for delivery</em> when the courier bike takes it</li>
+    </ul>
+
+    <p>Each one uses the dropdown and a short note. The customer's timeline fills up with clear, plain-English milestones.</p>
+
+    <h3>Step 11 — Editing what the customer sees (advanced)</h3>
+    <p>Suppose halfway through, a customer emails to say: <em>"Stop calling it 'Port congestion'. It doesn't make sense for air freight."</em></p>
+
+    <p>Open <strong>Content → Customer Messages</strong>. Find the row with admin key <code>port congestion</code>. Change the description from the default to:</p>
+    <p><em>"Your shipment is being routed through a busy hub. We're monitoring for the fastest path."</em></p>
+    <p>Save. Every customer whose shipment hits a port-congestion event now sees that message instead.</p>
+
+    <p>Same idea for any message in the list — customs, weather, delayed, delivered — you can rewrite any of them.</p>
+
+    <h3>Step 12 — Delivery</h3>
+    <p>Courier arrives, customer signs. Record the final event:</p>
+    <ul>
+      <li>Event type → <em>Delivered</em></li>
+      <li>Location → <em>Customer doorstep, Park Slope</em></li>
+      <li>Description → <em>Handed to Michael Chen. Signed for.</em></li>
+    </ul>
+
+    <p>Then upload the proof-of-delivery photo:</p>
+    <ul>
+      <li>Issues tab → <strong>📷 Attach photos / videos</strong></li>
+      <li>Take a photo of the signed receipt</li>
+      <li>Context → <em>Proof of delivery</em></li>
+      <li>Upload</li>
+    </ul>
+
+    <p>Finally, open the shipment and change status to <strong>Delivered</strong>. The customer's tracking page shows a green "Delivered" badge and the timeline is complete.</p>
+
+    <h3>Result — what the customer saw</h3>
+    <p>If Michael opened the tracking page on day 14 he saw:</p>
+    <ul>
+      <li>Map with the gold air arc across the Pacific, then truck / van / bike legs in New York</li>
+      <li>His parcel's icon traveling along that route, updating every few seconds</li>
+      <li>Weather at the parcel's current location, plus day/night on the map</li>
+      <li>A timeline with 12 clear events, including the customs inspection note you wrote</li>
+      <li>Photos he could tap to enlarge — pickup, customs form, proof of delivery</li>
+      <li>An ETA that updated itself when the typhoon delay was added</li>
+      <li>Nexora Express logo next to the tracking number — the assigned carrier</li>
+    </ul>
+
+    <div class="callout ok">
+      <strong>This is the whole point of the system.</strong> Michael never had to call to ask "where is my parcel?" — everything was visible, in plain English, at every stage.
+    </div>
+
+    <h2 id="example-sea">Example 2 — Dubai → Mombasa by sea (30 days)</h2>
+
+    <p>A very different journey: slow, on water, and long enough that two or three things will go wrong. This is the example that teaches you how to run a shipment over a whole month.</p>
+
+    <h3>Scenario</h3>
+    <ul>
+      <li>Customer in Mombasa ordered <strong>2 pallets of construction tiles</strong> from a Dubai supplier</li>
+      <li>Weight: 1,200 kg</li>
+      <li>Promised delivery window: <strong>30 days</strong></li>
+      <li>Service: FCL (full container load) sea freight, then road to the customer's site</li>
+    </ul>
+
+    <h3>Step 1 — Create the shipment</h3>
+    <table>
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Tracking number</td><td><code>NX-2026-0201</code></td></tr>
+        <tr><td>Customer name</td><td>Ali Hassan</td></tr>
+        <tr><td>Customer email</td><td>ali.hassan@mombasabuild.example</td></tr>
+        <tr><td>Customer phone</td><td>+254 722 555 0199</td></tr>
+        <tr><td>Package description</td><td>2 pallets construction tiles, 1,200 kg, containerized</td></tr>
+        <tr><td>Transport type</td><td>🚢 Ship</td></tr>
+        <tr><td>Vehicle name</td><td>Vessel</td></tr>
+        <tr><td>Vehicle number</td><td>MSC-ALIYA-V-042</td></tr>
+        <tr><td>Status</td><td>Pending</td></tr>
+        <tr><td>Origin</td><td>Dubai, United Arab Emirates</td></tr>
+        <tr><td>Origin lat / lng</td><td>25.2048 / 55.2708</td></tr>
+        <tr><td>Destination</td><td>Mombasa, Kenya</td></tr>
+        <tr><td>Destination lat / lng</td><td>-4.0435 / 39.6682</td></tr>
+        <tr><td>Initial speed</td><td>0</td></tr>
+        <tr><td>Estimated delivery</td><td>2026-12-05 12:00</td></tr>
+        <tr><td>Carrier / partner</td><td>Nexora Express</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Step 2 — Multi-modal route, 5 stops</h3>
+    <p>Sea freight is simpler than air — but there's a longer land leg at each end because ports are usually outside the city.</p>
+
+    <table>
+      <thead><tr><th>#</th><th>Stop</th><th>Type</th><th>Lat</th><th>Lng</th><th>Leg</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Dubai supplier warehouse (Jebel Ali)</td><td>warehouse</td><td>25.0118</td><td>55.0619</td><td>truck</td></tr>
+        <tr><td>2</td><td>Jebel Ali Port</td><td>port</td><td>25.0110</td><td>55.0275</td><td>truck</td></tr>
+        <tr><td>3</td><td>Mombasa Port</td><td>port</td><td>-4.0650</td><td>39.6800</td><td><strong>sea</strong></td></tr>
+        <tr><td>4</td><td>Mombasa depot</td><td>depot</td><td>-4.0435</td><td>39.6682</td><td>truck</td></tr>
+        <tr><td>5</td><td>Customer site, Nyali</td><td>destination</td><td>-4.0370</td><td>39.6980</td><td><strong>van</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Rebuild the route. The map now shows a long blue arc from the Arabian Gulf down the coast of East Africa, then short grey and purple legs at either end.</p>
+
+    <h3>Step 3 — Start tracking at a slow speed</h3>
+    <p>Sea freight is <strong>slow</strong>. Set:</p>
+    <ul>
+      <li>Speed → <strong>35 km/h</strong></li>
+      <li>Tracking mode → Simulation</li>
+      <li><strong>Save Movement Settings</strong> then <strong>▶ Start Tracking</strong></li>
+    </ul>
+
+    <div class="callout info">
+      <strong>Rule of thumb for speed:</strong> 30–40 km/h for sea, 60–80 km/h for road, 700–900 km/h for air, 120 km/h for rail, 25 km/h for a bike courier, 5 km/h for pedestrian.
+    </div>
+
+    <h3>Step 4 — Day 1: leaves the warehouse</h3>
+    <p>Record:</p>
+    <ul>
+      <li>Event → <em>Picked Up</em></li>
+      <li>Location → <em>Jebel Ali, Dubai</em></li>
+      <li>Description → <em>Container loaded, sealed, and moved to port terminal.</em></li>
+    </ul>
+
+    <h3>Step 5 — Day 2: loaded on the vessel</h3>
+    <p>Record:</p>
+    <ul>
+      <li>Event → <em>Departed</em></li>
+      <li>Location → <em>Jebel Ali Port</em></li>
+      <li>Description → <em>Container loaded on MSC-ALIYA-V-042. Departing for Mombasa.</em></li>
+    </ul>
+
+    <h3>Step 6 — Day 8: a storm slows the vessel</h3>
+    <p>The vessel reroutes around heavy weather off the Horn of Africa. Adds 3 days to the ETA.</p>
+    <ol>
+      <li>Issues tab → <strong>Weather delay</strong></li>
+      <li>Delay amount → <strong>3</strong> · unit → <strong>Days</strong></li>
+      <li>Customer note → <em>"Vessel rerouting around heavy weather. Arrival pushed by 3 days."</em></li>
+      <li>Record incident</li>
+    </ol>
+    <p>ETA extended automatically. Movement continues.</p>
+
+    <h3>Step 7 — Day 18: arrives at Mombasa Port, held for customs</h3>
+    <p>Kenyan customs selects the container for inspection.</p>
+    <ol>
+      <li>Issues tab → <strong>Customs inspection</strong></li>
+      <li>Customer note → <em>"Container selected for routine inspection by Kenya Revenue Authority. We're coordinating."</em></li>
+      <li>Record incident</li>
+    </ol>
+    <p>Movement stops. Status flips to On hold. Both maps show red.</p>
+
+    <p>Upload the customs form you emailed to KRA:</p>
+    <ul>
+      <li>📷 Attach photos / videos → context <em>Customs documentation</em></li>
+    </ul>
+
+    <h3>Step 8 — Day 20: port congestion on top of customs</h3>
+    <p>Even after customs, the terminal is backlogged 4 days before it can release the container.</p>
+    <ol>
+      <li>Issues tab → <strong>Port congestion</strong></li>
+      <li>Delay amount → <strong>4</strong> · unit → <strong>Days</strong></li>
+      <li>Customer note → <em>"Container cleared. Waiting for berth space due to port congestion."</em></li>
+      <li>Record incident</li>
+    </ol>
+    <p>Port congestion doesn't pause movement, but the shipment isn't moving anyway while customs is on hold — the ETA just extends.</p>
+
+    <h3>Step 9 — Day 22: customs released, ETA updated</h3>
+    <ol>
+      <li>Issues tab → find the customs hold</li>
+      <li>Clearance note → <em>"KRA released container. Reference KRA-2026-11-3384."</em></li>
+      <li>Tap <strong>Clear hold</strong></li>
+    </ol>
+    <p>Now clear the port-congestion note too — mark it delivered or dismiss it from the timeline (it will auto-hide once its date passes).</p>
+
+    <h3>Step 10 — Day 25: container moved to Mombasa depot</h3>
+    <p>Record:</p>
+    <ul>
+      <li>Event → <em>Arrived</em></li>
+      <li>Location → <em>Mombasa depot</em></li>
+      <li>Description → <em>Container destuffed. Pallets ready for delivery.</em></li>
+    </ul>
+
+    <h3>Step 11 — Day 27: out for delivery</h3>
+    <p>Van picks up the two pallets.</p>
+    <ul>
+      <li>Event → <em>Out for delivery</em></li>
+      <li>Location → <em>En route to Nyali site</em></li>
+      <li>Description → <em>Driver Ali on the way, ETA 2 hours.</em></li>
+    </ul>
+
+    <h3>Step 12 — Day 27, 2 hours later: delivered</h3>
+    <ul>
+      <li>Event → <em>Delivered</em></li>
+      <li>Description → <em>Handed to Ali Hassan's site foreman. Signed.</em></li>
+    </ul>
+    <p>Upload proof-of-delivery photo. Change status to <strong>Delivered</strong>.</p>
+
+    <h3>Step 13 — Editing the customer-facing message mid-journey</h3>
+    <p>Halfway through, you realise the default customs message says <em>"Your shipment is being inspected by customs authorities"</em> — which sounds scary. Open <strong>Content → Customer Messages</strong>, find <code>customs inspection</code>, and rewrite the description to:</p>
+    <p><em>"We're working with customs to complete a routine check. Your container is safe and we'll update you the moment it's cleared."</em></p>
+    <p>From that moment, every customer with a customs hold sees the calmer message. Save once, affects everything.</p>
+
+    <div class="callout ok">
+      <strong>What this example taught:</strong> on a 30-day journey you'll deal with weather, customs, and port delays — sometimes all three. Each has a different behaviour (weather = keep moving, customs = pause, port congestion = keep moving). Getting them right makes the timeline honest.
+    </div>
+
+    <h2 id="example-short">Example 3 — Paris → Berlin by van (2 days)</h2>
+
+    <p>A short, quick shipment. This example shows the opposite of the long-haul ones: <strong>fewer stops, one mode, and a fast timeline</strong>. Not every shipment needs 6 legs. Some just need a van and 2 days.</p>
+
+    <h3>Scenario</h3>
+    <ul>
+      <li>Customer in Berlin ordered <strong>3 sealed boxes of artwork</strong> from a Paris gallery</li>
+      <li>Weight: 15 kg · Fragile · Insured</li>
+      <li>Promised delivery: <strong>2 days</strong></li>
+      <li>Service: direct van, no cross-dock, no air</li>
+    </ul>
+
+    <h3>Step 1 — Create the shipment</h3>
+    <table>
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Tracking number</td><td><code>NX-2026-0301</code></td></tr>
+        <tr><td>Customer name</td><td>Klaus Vogel</td></tr>
+        <tr><td>Customer email</td><td>klaus.vogel@example.de</td></tr>
+        <tr><td>Customer phone</td><td>+49 30 555 0177</td></tr>
+        <tr><td>Package description</td><td>3 sealed boxes, framed artwork, 15 kg, fragile</td></tr>
+        <tr><td>Transport type</td><td>🚐 Van</td></tr>
+        <tr><td>Vehicle name</td><td>Van</td></tr>
+        <tr><td>Vehicle number</td><td>FR-VAN-0791</td></tr>
+        <tr><td>Status</td><td>Pending</td></tr>
+        <tr><td>Origin</td><td>Paris, France</td></tr>
+        <tr><td>Origin lat / lng</td><td>48.8566 / 2.3522</td></tr>
+        <tr><td>Destination</td><td>Berlin, Germany</td></tr>
+        <tr><td>Destination lat / lng</td><td>52.5200 / 13.4050</td></tr>
+        <tr><td>Initial speed</td><td>0</td></tr>
+        <tr><td>Estimated delivery</td><td>2026-10-15 16:00</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Step 2 — Simple route, 3 stops only</h3>
+    <p>Because this is direct, the route only needs three stops. Fewer stops = simpler admin and cleaner customer timeline.</p>
+
+    <table>
+      <thead><tr><th>#</th><th>Stop</th><th>Type</th><th>Lat</th><th>Lng</th><th>Leg</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Paris gallery — Marais</td><td>origin</td><td>48.8595</td><td>2.3616</td><td>truck</td></tr>
+        <tr><td>2</td><td>Berlin delivery hub</td><td>depot</td><td>52.5200</td><td>13.4050</td><td><strong>van</strong></td></tr>
+        <tr><td>3</td><td>Customer address — Prenzlauer Berg</td><td>destination</td><td>52.5388</td><td>13.4244</td><td>van</td></tr>
+      </tbody>
+    </table>
+
+    <p>Rebuild. The map shows a single purple dashed line from Paris to Berlin. Clean, simple.</p>
+
+    <h3>Step 3 — Start tracking at road speed</h3>
+    <ul>
+      <li>Speed → <strong>75 km/h</strong></li>
+      <li>Save Movement Settings · ▶ Start Tracking</li>
+    </ul>
+
+    <h3>Step 4 — Day 1 morning: collected</h3>
+    <ul>
+      <li>Event → <em>Picked Up</em></li>
+      <li>Location → <em>Paris gallery, Marais</em></li>
+      <li>Description → <em>Boxes inspected, secured with fragile tape, loaded in the van.</em></li>
+    </ul>
+
+    <h3>Step 5 — Day 1 evening: crossing into Germany</h3>
+    <ul>
+      <li>Event → <em>Arrived</em></li>
+      <li>Location → <em>Strasbourg border</em></li>
+      <li>Description → <em>Cleared French/German border. Continuing east.</em></li>
+    </ul>
+
+    <h3>Step 6 — Day 2 morning: arrived at Berlin hub</h3>
+    <ul>
+      <li>Event → <em>Arrived</em></li>
+      <li>Location → <em>Berlin delivery hub</em></li>
+      <li>Description → <em>Boxes sorted for delivery. Van departing for Prenzlauer Berg.</em></li>
+    </ul>
+
+    <h3>Step 7 — Day 2 afternoon: delivered</h3>
+    <ul>
+      <li>Event → <em>Delivered</em></li>
+      <li>Description → <em>Handed to Klaus Vogel. Signature captured.</em></li>
+    </ul>
+    <p>Upload the POD photo. Change status to <strong>Delivered</strong>.</p>
+
+    <div class="callout ok">
+      <strong>What this example taught:</strong> not every shipment needs 6 stops. Simple jobs = simple routes. The customer still sees a clean timeline, but you spent 10 minutes setting it up instead of an hour.
+    </div>
+
+    <h2 id="example-rail">Example 4 — Mumbai → Chennai by rail (5 days)</h2>
+
+    <p>A mid-length domestic shipment that uses rail, one of the trickier modes to present because the customer has no mental image of where the train is. The map does the work.</p>
+
+    <h3>Scenario</h3>
+    <ul>
+      <li>Customer in Chennai ordered <strong>12 cartons of textiles</strong> from a Mumbai exporter</li>
+      <li>Weight: 240 kg · Palletised</li>
+      <li>Promised delivery: <strong>5 days</strong></li>
+      <li>Service: truck to rail terminal, rail to Chennai, local bike courier last mile</li>
+    </ul>
+
+    <h3>Step 1 — Create the shipment</h3>
+    <table>
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Tracking number</td><td><code>NX-2026-0401</code></td></tr>
+        <tr><td>Customer name</td><td>Priya Raman</td></tr>
+        <tr><td>Customer email</td><td>priya.raman@example.in</td></tr>
+        <tr><td>Customer phone</td><td>+91 44 555 0166</td></tr>
+        <tr><td>Package description</td><td>12 cartons, textiles, 240 kg, palletised</td></tr>
+        <tr><td>Transport type</td><td>🚆 Train</td></tr>
+        <tr><td>Vehicle name</td><td>Rail Freight</td></tr>
+        <tr><td>Vehicle number</td><td>WR-2026-1188</td></tr>
+        <tr><td>Status</td><td>Pending</td></tr>
+        <tr><td>Origin</td><td>Mumbai, India</td></tr>
+        <tr><td>Origin lat / lng</td><td>19.0760 / 72.8777</td></tr>
+        <tr><td>Destination</td><td>Chennai, India</td></tr>
+        <tr><td>Destination lat / lng</td><td>13.0827 / 80.2707</td></tr>
+        <tr><td>Initial speed</td><td>0</td></tr>
+        <tr><td>Estimated delivery</td><td>2026-10-20 18:00</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Step 2 — Route with rail as the middle leg</h3>
+    <table>
+      <thead><tr><th>#</th><th>Stop</th><th>Type</th><th>Lat</th><th>Lng</th><th>Leg</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Mumbai exporter warehouse</td><td>warehouse</td><td>19.0330</td><td>72.8630</td><td>truck</td></tr>
+        <tr><td>2</td><td>Mumbai Central Rail Terminal</td><td>rail_hub</td><td>18.9696</td><td>72.8194</td><td>truck</td></tr>
+        <tr><td>3</td><td>Chennai Central Rail Terminal</td><td>rail_hub</td><td>13.0827</td><td>80.2754</td><td><strong>rail</strong></td></tr>
+        <tr><td>4</td><td>Chennai distribution hub</td><td>depot</td><td>13.0475</td><td>80.2450</td><td>truck</td></tr>
+        <tr><td>5</td><td>Customer address — T. Nagar</td><td>destination</td><td>13.0400</td><td>80.2337</td><td><strong>bike</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Rebuild. The map shows a green rail arc down the east coast of India, then truck legs at each end, then a bike courier for the last mile.</p>
+
+    <h3>Step 3 — Start tracking</h3>
+    <ul>
+      <li>Speed → <strong>110 km/h</strong> (rail)</li>
+      <li>Save · Start</li>
+    </ul>
+
+    <h3>Step 4 — Events across the 5 days</h3>
+    <ul>
+      <li><strong>Day 1 morning</strong> — Picked Up · Mumbai warehouse</li>
+      <li><strong>Day 1 afternoon</strong> — Arrived · Mumbai Central Rail Terminal</li>
+      <li><strong>Day 2 early</strong> — Departed · loaded on train WR-2026-1188</li>
+      <li><strong>Day 4</strong> — Arrived · Chennai Central Rail Terminal</li>
+      <li><strong>Day 4 evening</strong> — Arrived · Chennai distribution hub</li>
+      <li><strong>Day 5 morning</strong> — Out for delivery</li>
+      <li><strong>Day 5 afternoon</strong> — Delivered</li>
+    </ul>
+
+    <h3>Step 5 — What if the rail leg is delayed?</h3>
+    <p>Indian Railways can add 1–2 days without warning. If the shipment stalls at Mumbai Central:</p>
+    <ul>
+      <li>Issues tab → <strong>Weather delay</strong> (or Port congestion works too)</li>
+      <li>Delay amount → <strong>1</strong> · unit → <strong>Days</strong></li>
+      <li>Customer note → <em>"Rail schedule adjustment. Arrival pushed by 1 day."</em></li>
+      <li>Record incident</li>
+    </ul>
+    <p>ETA extends. Timeline shows the note. Customer is informed without any phone call.</p>
+
+    <div class="callout ok">
+      <strong>What this example taught:</strong> rail looks like a straight line on the map because trains follow fixed tracks. Don't worry about that — the icon and the colour say "train" clearly and the customer understands. The bike last-mile makes the whole thing feel human.
+    </div>
+
+    <h2 id="example-emergency">Example 5 — Emergency medical, same city (6 hours)</h2>
+
+    <p>The shortest possible shipment — a small package moving across one city in a single afternoon. This teaches the fastest workflow when speed matters more than anything else.</p>
+
+    <h3>Scenario</h3>
+    <ul>
+      <li>A hospital in central London needs a box of rare blood test kits</li>
+      <li>Source: an NHS storage facility 12 km away, in Southwark</li>
+      <li>Needed: <strong>within 6 hours</strong>, today</li>
+      <li>Service: motorbike courier + pedestrian handover at the hospital entrance</li>
+    </ul>
+
+    <h3>Step 1 — Create the shipment</h3>
+    <table>
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Tracking number</td><td><code>NX-2026-0501</code></td></tr>
+        <tr><td>Customer name</td><td>Dr. Fiona Walsh</td></tr>
+        <tr><td>Customer email</td><td>f.walsh@stmarys.example.uk</td></tr>
+        <tr><td>Customer phone</td><td>+44 20 7 555 0144</td></tr>
+        <tr><td>Package description</td><td>1 insulated cold box, blood test kits, urgent medical</td></tr>
+        <tr><td>Transport type</td><td>🏍️ Bike</td></tr>
+        <tr><td>Vehicle name</td><td>Courier</td></tr>
+        <tr><td>Vehicle number</td><td>LDN-BIKE-044</td></tr>
+        <tr><td>Status</td><td>Pending</td></tr>
+        <tr><td>Origin</td><td>NHS Storage Southwark, London</td></tr>
+        <tr><td>Origin lat / lng</td><td>51.5030 / -0.0900</td></tr>
+        <tr><td>Destination</td><td>St Mary's Hospital, Paddington</td></tr>
+        <tr><td>Destination lat / lng</td><td>51.5175 / -0.1730</td></tr>
+        <tr><td>Initial speed</td><td>0</td></tr>
+        <tr><td>Estimated delivery</td><td>Same day, 18:00</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Step 2 — Simple 4-stop route, no air, no sea</h3>
+    <table>
+      <thead><tr><th>#</th><th>Stop</th><th>Type</th><th>Lat</th><th>Lng</th><th>Leg</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>NHS Southwark storage</td><td>warehouse</td><td>51.5030</td><td>-0.0900</td><td>truck</td></tr>
+        <tr><td>2</td><td>Courier dispatch point</td><td>depot</td><td>51.5050</td><td>-0.1000</td><td>truck</td></tr>
+        <tr><td>3</td><td>Hospital side entrance</td><td>checkpoint</td><td>51.5170</td><td>-0.1725</td><td><strong>bike</strong></td></tr>
+        <tr><td>4</td><td>Hospital front desk, handover</td><td>destination</td><td>51.5175</td><td>-0.1730</td><td><strong>ped</strong></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Step 3 — Start tracking fast</h3>
+    <ul>
+      <li>Speed → <strong>30 km/h</strong> (bike in London traffic)</li>
+      <li>Save · Start</li>
+    </ul>
+
+    <h3>Step 4 — All events in one afternoon</h3>
+    <ul>
+      <li><strong>12:15</strong> — Picked Up · Southwark storage</li>
+      <li><strong>12:30</strong> — Arrived · courier dispatch</li>
+      <li><strong>13:45</strong> — Out for delivery · courier departing</li>
+      <li><strong>17:30</strong> — Arrived · hospital side entrance</li>
+      <li><strong>17:45</strong> — Delivered · front desk reception</li>
+    </ul>
+
+    <p>Upload the receiver's signature. Change status to <strong>Delivered</strong>. Done.</p>
+
+    <div class="callout ok">
+      <strong>What this example taught:</strong> same-city, same-day shipments don't need air or customs. All the tools that matter are the same — just used faster. Proof of delivery is critical here because medical shipments are regulated.
+    </div>
+
+    <h2 id="example-peak">Example 6 — Peak week: 5 shipments at once, one goes wrong</h2>
+
+    <p>The realistic challenge of running a real logistics operation. This is what your dashboards were built for.</p>
+
+    <h3>The week ahead</h3>
+    <p>You have 5 active shipments:</p>
+    <table>
+      <thead><tr><th>#</th><th>Tracking</th><th>Route</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>NX-2026-0101</td><td>Singapore → NYC</td><td>In transit (long-haul air)</td></tr>
+        <tr><td>2</td><td>NX-2026-0201</td><td>Dubai → Mombasa</td><td>In transit (sea)</td></tr>
+        <tr><td>3</td><td>NX-2026-0301</td><td>Paris → Berlin</td><td>Out for delivery (van)</td></tr>
+        <tr><td>4</td><td>NX-2026-0401</td><td>Mumbai → Chennai</td><td>At rail terminal</td></tr>
+        <tr><td>5</td><td>NX-2026-0501</td><td>London same-city</td><td>Pending pickup</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Monday morning — see everything at once</h3>
+    <p>Open <strong>Shipments → Fleet View</strong>. You see all 5 on one map:</p>
+    <ul>
+      <li>5 markers, colour-coded by status</li>
+      <li>Top bar shows <em>5 active · 3 moving · 0 flagged</em></li>
+      <li>You can immediately see who's where without opening each shipment</li>
+    </ul>
+
+    <h3>Monday — assign carriers to each</h3>
+    <ul>
+      <li>Singapore → NYC: assign <em>Nexora Express</em> (already done at create time)</li>
+      <li>Dubai → Mombasa: assign a sea-freight partner</li>
+      <li>Paris → Berlin: assign your direct van team</li>
+      <li>Mumbai → Chennai: assign an Indian rail partner</li>
+      <li>London same-city: assign a bike courier partner</li>
+    </ul>
+    <p>Each carrier's logo now shows on the shipment row, and customers see "Handled by [Carrier]" on their tracking page.</p>
+
+    <h3>Tuesday — the crisis: shipment #2 seized</h3>
+    <p>Mombasa customs seizes the tiles for suspected undervaluation.</p>
+    <ol>
+      <li>Open <strong>Fleet View</strong> → search <code>NX-2026-0201</code> → tap the marker</li>
+      <li>Tap <strong>Open</strong> → shipment control page loads</li>
+      <li>Open Issues tab</li>
+      <li>Choose <strong>Seized by authority</strong></li>
+      <li>Customer note → <em>"Your container is under review by Kenyan customs for a documentation query. Our team is in contact. We'll update you within 24 hours."</em></li>
+      <li>Tap <strong>Record incident</strong></li>
+      <li>Upload the customs seizure notice photo (Issues tab → 📷 Attach photos / videos)</li>
+    </ol>
+
+    <p>Then:</p>
+    <ul>
+      <li>Fleet View now shows the marker <strong>red and pulsing</strong> — you can't miss it</li>
+      <li>Dashboard "flagged" counter shows <em>1</em></li>
+      <li>Movement is paused automatically (mandatory hold)</li>
+      <li>Customer timeline shows the note you wrote — no phone call needed</li>
+    </ul>
+
+    <h3>Tuesday afternoon — you decide to soften the wording</h3>
+    <p>You realise "Seized" is a scary word. Open <strong>Content → Customer Messages</strong>, find <code>shipment seized</code>, and rewrite the description to:</p>
+    <p><em>"Your shipment is being reviewed by local customs for a routine documentation check. It's safe. We're handling it and will update you as soon as it clears."</em></p>
+    <p>Save. The customer sees the calmer version on their next refresh. No code change, no developer involvement.</p>
+
+    <h3>Wednesday — clear the seizure, resume movement</h3>
+    <ol>
+      <li>Issues tab → find the seized hold at the top of Current Status</li>
+      <li>Clearance note → <em>"Customs accepted revised documentation. Reference KRA-2026-11-9982. Container released."</em></li>
+      <li>Tap <strong>Clear hold</strong></li>
+      <li>Movement tab → tap <strong>▶ Resume</strong></li>
+    </ol>
+    <p>Fleet View turns the marker gold again. Timeline logs the release. Customer sees "Shipment released" and continues tracking.</p>
+
+    <h3>Thursday — Paris → Berlin delivered</h3>
+    <p>Shipment #3 arrives. Record the delivered event. Status flips to <strong>Delivered</strong>. Fleet View drops it from the active list (it's done).</p>
+
+    <h3>Thursday evening — glance at the whole week</h3>
+    <p>Open <strong>People → Tracking Lookups</strong> and see who visited their tracking pages this week. Notice a customer looked 6 times in one day — good sign their shipment is late or they're anxious. You can proactively email them.</p>
+
+    <h3>Friday — upload final proof photos for everything</h3>
+    <ul>
+      <li>Shipment #1: proof of delivery at Brooklyn door</li>
+      <li>Shipment #2: end-of-discharge photo at Mombasa</li>
+      <li>Shipment #3: signed receipt</li>
+      <li>Shipment #4: rail arrival photo</li>
+      <li>Shipment #5: hospital signature</li>
+    </ul>
+    <p>Each one goes on its own shipment. Customers see them the moment they open their tracking page.</p>
+
+    <h3>End of week — read the numbers</h3>
+    <p>Homepage counters show:</p>
+    <ul>
+      <li>Shipments delivered: up by 2</li>
+      <li>Countries served: unchanged (180)</li>
+      <li>Happy clients: up by 2</li>
+      <li>Average rating: unchanged (4.9)</li>
+    </ul>
+    <p>These are pulled from real data. You didn't type any of them.</p>
+
+    <div class="callout warn">
+      <strong>The real skill this example teaches:</strong> in a busy week, you rarely look at any single shipment for more than 3 minutes. Fleet View + the issues panel + the customer message editor are the three tools you use every hour. Everything else is secondary.
+    </div>
+
+    <h2 id="popups">Validation &amp; popups — how errors surface</h2>
+
+    <p>Every form on the admin runs its own checks <strong>before</strong> submitting. You never lose data because a field was empty — the system stops, tells you why, and leaves your work intact.</p>
+
+    <h3>Three popup colours</h3>
+    <table>
+      <thead><tr><th>Colour</th><th>Meaning</th><th>What to do</th></tr></thead>
+      <tbody>
+        <tr><td>🟢 Green ✓</td><td>Saved successfully.</td><td>Nothing. Fades out after 3 seconds.</td></tr>
+        <tr><td>🟡 Amber ⚠</td><td>Warning — data saved but check something.</td><td>Read the message, act if needed, tap to dismiss.</td></tr>
+        <tr><td>🔴 Red ✕</td><td>Rejected — nothing was saved.</td><td>Fix the field named in the message, then resubmit.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Common errors and how to fix them</h3>
+    <table>
+      <thead><tr><th>Message</th><th>What you typed</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td>"Longitude must be negative"</td><td>New York with positive longitude</td><td>Use <code>-74.0060</code>, not <code>74.0060</code></td></tr>
+        <tr><td>"Latitude must be between -90 and 90"</td><td>You typed 118 (a longitude) in the latitude field</td><td>Swap the values</td></tr>
+        <tr><td>"Origin and destination cannot be the same"</td><td>Same coordinates for both</td><td>Check the destination lat/lng</td></tr>
+        <tr><td>"Logo exceeds 512 KB"</td><td>A 3 MB photo</td><td>Compress it (any free compressor works) or use a URL instead</td></tr>
+        <tr><td>"Pick at least one file"</td><td>Upload button hit with no file</td><td>Choose the file first</td></tr>
+        <tr><td>"Delay is unrealistically large"</td><td>Delay value 99999</td><td>Use weeks or months for long delays instead of a huge minutes value</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="appendix-a">Appendix A · Delay units</h2>
+    <table>
+      <thead><tr><th>Unit</th><th>Minutes</th><th>When to use</th></tr></thead>
+      <tbody>
+        <tr><td>Minutes</td><td>1</td><td>Tiny hold-ups — a traffic stop, a scan check</td></tr>
+        <tr><td>Hours</td><td>60</td><td>Same-day delays — a loading wait, a courier late</td></tr>
+        <tr><td>Days</td><td>1,440</td><td>Typical customs hold, weather, a rail schedule slip</td></tr>
+        <tr><td>Weeks</td><td>10,080</td><td>Long container delays, port congestion</td></tr>
+        <tr><td>Months</td><td>43,200</td><td>Rare — extended legal holds, complex documentation</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout info">
+      Whatever unit you pick, the system converts to minutes and extends the shipment's estimated delivery automatically. You never have to update the ETA by hand.
+    </div>
+
+    <h2 id="appendix-b">Appendix B · City coordinates</h2>
+    <p>Copy the numbers straight into the origin/destination lat-lng fields. Latitude first, then longitude.</p>
+
+    <table>
+      <thead><tr><th>City</th><th>Latitude</th><th>Longitude</th></tr></thead>
+      <tbody>
+        <tr><td>Lagos, Nigeria</td><td>6.5244</td><td>3.3792</td></tr>
+        <tr><td>Abuja, Nigeria</td><td>9.0765</td><td>7.3986</td></tr>
+        <tr><td>Port Harcourt</td><td>4.8156</td><td>7.0498</td></tr>
+        <tr><td>London, UK</td><td>51.5074</td><td>-0.1278</td></tr>
+        <tr><td>Paris, France</td><td>48.8566</td><td>2.3522</td></tr>
+        <tr><td>Berlin, Germany</td><td>52.5200</td><td>13.4050</td></tr>
+        <tr><td>Madrid, Spain</td><td>40.4168</td><td>-3.7038</td></tr>
+        <tr><td>Rome, Italy</td><td>41.9028</td><td>12.4964</td></tr>
+        <tr><td>Amsterdam</td><td>52.3676</td><td>4.9041</td></tr>
+        <tr><td>Rotterdam</td><td>51.9244</td><td>4.4777</td></tr>
+        <tr><td>Lisbon, Portugal</td><td>38.7223</td><td>-9.1393</td></tr>
+        <tr><td>Dublin, Ireland</td><td>53.3498</td><td>-6.2603</td></tr>
+        <tr><td>New York, USA</td><td>40.7128</td><td>-74.0060</td></tr>
+        <tr><td>Los Angeles, USA</td><td>34.0522</td><td>-118.2437</td></tr>
+        <tr><td>Chicago, USA</td><td>41.8781</td><td>-87.6298</td></tr>
+        <tr><td>Miami, USA</td><td>25.7617</td><td>-80.1918</td></tr>
+        <tr><td>Toronto, Canada</td><td>43.6532</td><td>-79.3832</td></tr>
+        <tr><td>Dubai, UAE</td><td>25.2048</td><td>55.2708</td></tr>
+        <tr><td>Mumbai, India</td><td>19.0760</td><td>72.8777</td></tr>
+        <tr><td>Delhi, India</td><td>28.6139</td><td>77.2090</td></tr>
+        <tr><td>Chennai, India</td><td>13.0827</td><td>80.2707</td></tr>
+        <tr><td>Singapore</td><td>1.3521</td><td>103.8198</td></tr>
+        <tr><td>Shanghai, China</td><td>31.2304</td><td>121.4737</td></tr>
+        <tr><td>Beijing, China</td><td>39.9042</td><td>116.4074</td></tr>
+        <tr><td>Hong Kong</td><td>22.3193</td><td>114.1694</td></tr>
+        <tr><td>Tokyo, Japan</td><td>35.6762</td><td>139.6503</td></tr>
+        <tr><td>Seoul, South Korea</td><td>37.5665</td><td>126.9780</td></tr>
+        <tr><td>Bangkok, Thailand</td><td>13.7563</td><td>100.5018</td></tr>
+        <tr><td>Sydney, Australia</td><td>-33.8688</td><td>151.2093</td></tr>
+        <tr><td>Cairo, Egypt</td><td>30.0444</td><td>31.2357</td></tr>
+        <tr><td>Nairobi, Kenya</td><td>-1.2864</td><td>36.8172</td></tr>
+        <tr><td>Mombasa, Kenya</td><td>-4.0435</td><td>39.6682</td></tr>
+        <tr><td>Johannesburg, SA</td><td>-26.2041</td><td>28.0473</td></tr>
+        <tr><td>São Paulo, Brazil</td><td>-23.5505</td><td>-46.6333</td></tr>
+        <tr><td>Buenos Aires, Argentina</td><td>-34.6037</td><td>-58.3816</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <strong>Sign rules</strong> — the single most common mistake:
+      <ul>
+        <li><strong>Western hemisphere</strong> (Americas) → longitude is <strong>negative</strong></li>
+        <li><strong>Eastern hemisphere</strong> (Europe, Africa, Asia, Australia) → longitude is <strong>positive</strong></li>
+        <li><strong>Northern hemisphere</strong> (most of the world) → latitude is <strong>positive</strong></li>
+        <li><strong>Southern hemisphere</strong> (Australia, Brazil, South Africa) → latitude is <strong>negative</strong></li>
+      </ul>
+      The yellow warning that appears as you type the origin/destination name catches most of these automatically.
+    </div>
+
+    <h2 id="appendix-c">Appendix C · Map behaviour</h2>
+
+    <p>Both the public tracking page and the admin live map use Mapbox satellite imagery. Here's what each thing on the map means.</p>
+
+    <table>
+      <thead><tr><th>Item</th><th>What it is</th></tr></thead>
+      <tbody>
+        <tr><td>The gold ring around a marker</td><td>Your shipment's current position. Pulses red when the shipment is on hold or seized.</td></tr>
+        <tr><td>🟢 🇺🇸 / 🇬🇧 flag pins</td><td>Origin and destination, chosen automatically from the place name.</td></tr>
+        <tr><td>✈️ / 🚢 / 🚚 / 🚐 / 🏍️ / 🚶 colored dashed line</td><td>The route, one colour per leg. Gold = air, blue = sea, grey = truck, purple = van, pink = bike, dark = pedestrian.</td></tr>
+        <tr><td>Dark blue overlay on part of the Earth</td><td>Real day/night — wherever the shadow is, it's nighttime there right now.</td></tr>
+        <tr><td>Top-left HUD box</td><td>Current weather, local time, and day-part at the shipment's location.</td></tr>
+        <tr><td>Small icons moving around the world</td><td>Ambient activity — real aircraft and decorative traffic. Not your shipment. Tap any of them to confirm.</td></tr>
+        <tr><td>⛶ Fullscreen button</td><td>Bottom-right of the map. Expands to fill the screen without losing the route or markers.</td></tr>
+        <tr><td>ⓘ circle bottom-right</td><td>Mapbox attribution. Required by licence — do not remove.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="appendix-d">Appendix D · Public vs Admin</h2>
+
+    <p>You never want the customer to see internal controls. Everything that follows is <strong>deliberately separated</strong>.</p>
+
+    <table>
+      <thead><tr><th>Feature</th><th>Customer sees</th><th>Admin sees</th></tr></thead>
+      <tbody>
+        <tr><td>Tracking map + route</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Timeline (customer wording)</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Photos &amp; videos (public ones)</td><td>Yes</td><td>Yes (all)</td></tr>
+        <tr><td>Estimated delivery</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Start / pause / resume buttons</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Speed and tracking mode</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Manual position override</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Operational events form</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Holds &amp; incidents panel</td><td>Only the message, not the controls</td><td>Yes (full panel)</td></tr>
+        <tr><td>Admin names on events</td><td>Never</td><td>Yes</td></tr>
+        <tr><td>Route editor</td><td>No</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout ok">
+      The public tracking page and the admin live map show the <strong>same route and same position</strong> — so what you check in admin is exactly what the customer sees. But only you have the control buttons.
+    </div>
+
+    <h2 id="appendix-e">Appendix E · File map</h2>
+    <p>If you ever need the developer to look at something specific, this is where everything lives.</p>
+
+    <h4>Public site</h4>
+    <ul>
+      <li><code>public/index.php</code> — homepage</li>
+      <li><code>public/track.php</code> — customer tracking page</li>
+      <li><code>public/track-api.php</code> — JSON data for the tracking page</li>
+      <li><code>public/pre-track.php</code> — the details form customers fill before tracking</li>
+      <li><code>public/assets/css/app.css</code> — site styling</li>
+      <li><code>public/assets/js/nx-labels.js</code> — shared icon + status + date helpers</li>
+      <li><code>public/assets/js/nx-popup.js</code> — validation popup library</li>
+      <li><code>public/assets/images/</code> — hero photo + service photos</li>
+      <li><code>public/assets/media/</code> — shipment photos and videos</li>
+      <li><code>public/assets/carriers/</code> — carrier logos</li>
+    </ul>
+
+    <h4>Admin</h4>
+    <ul>
+      <li><code>admin/index.php</code> — dashboard</li>
+      <li><code>admin/shipments-hub.php</code> — shipments section home</li>
+      <li><code>admin/shipments.php</code> — create a shipment</li>
+      <li><code>admin/shipment-management.php</code> — list all shipments</li>
+      <li><code>admin/shipment-control.php</code> — the main workspace (6 tabs)</li>
+      <li><code>admin/shipment-route.php</code> — route editor</li>
+      <li><code>admin/tracking-operations.php</code> — day-to-day controls</li>
+      <li><code>admin/fleet.php</code> — all active shipments on one map</li>
+      <li><code>admin/people.php</code> — people hub</li>
+      <li><code>admin/tracking-lookups.php</code> — customer contact list</li>
+      <li><code>admin/testimonials.php</code> — reviews</li>
+      <li><code>admin/content.php</code> — content hub</li>
+      <li><code>admin/site-content.php</code> — homepage wording editor</li>
+      <li><code>admin/customer-messages.php</code> — timeline wording editor</li>
+      <li><code>admin/settings.php</code> — settings hub</li>
+      <li><code>admin/carriers.php</code> — partner companies</li>
+      <li><code>admin/dashboard-test.php</code> — diagnostics</li>
+      <li><code>admin/manual.php</code> — this manual</li>
+    </ul>
+
+    <h4>Data + logic</h4>
+    <ul>
+      <li><code>database/database.sqlite</code> — the live database</li>
+      <li><code>backups/</code> — timestamped backups before every schema change</li>
+      <li><code>app/Auth.php</code>, <code>app/Database.php</code>, <code>app/Tracking/Engine.php</code> — internal logic</li>
+      <li><code>config/config.php</code> — framework config</li>
+      <li><code>.env</code> — settings + the Mapbox token</li>
+    </ul>
+
+    <h2 id="downloads">Downloads</h2>
+    <p>Two files to keep safe — save them together and back them up.</p>
+    <ul>
+      <li><strong>Full project archive (ZIP)</strong> — every source file. Sits in your phone's Downloads folder as <code>nexora-logistics-full-YYYYMMDD-HHMMSS.zip</code>. To move it to a new phone: copy the ZIP, unzip into <code>~/vibranthub/</code>, and everything works.</li>
+      <li><strong>Regeneration prompt</strong> — <code>nexora-rebuild-prompt.txt</code> in the project root. Paste it into any future AI chat and it understands the whole system, so you never have to explain it from scratch.</li>
+    </ul>
+
+    <h3>How to build the archive again</h3>
+    <p>From Termux:</p>
+    <pre style="background:#f1f5f9;padding:12px;border-radius:8px;overflow-x:auto;font-size:.82rem;"><code>cd ~/vibranthub
+STAMP=$(date +%Y%m%d-%H%M%S)
+OUT="$HOME/storage/downloads/nexora-logistics-full-$STAMP.zip"
+zip -r "$OUT" . -x "*.bak*" "*before*" "*broken*" "*backup*" "backups/*" "*.zip" -x "storage/cache/*" "storage/logs/*"
+ls -lh "$OUT"</code></pre>
+    <p>The file lands in your Downloads folder. Share it, upload it, keep it as a backup.</p>
+
+    <h3>How to restore on a fresh phone</h3>
+    <pre style="background:#f1f5f9;padding:12px;border-radius:8px;overflow-x:auto;font-size:.82rem;"><code>cd ~
+unzip ~/storage/downloads/nexora-logistics-full-YYYYMMDD-HHMMSS.zip -d vibranthub
+cd vibranthub/public
+php -S 127.0.0.1:8000</code></pre>
+    <p>Then open <code>http://127.0.0.1:8000/</code> in the browser. Everything is where it was.</p>
+
+    <div class="callout warn">
+      <strong>Do not skip backing up the ZIP.</strong> If the phone is lost, wiped, or you switch devices, the ZIP is the entire project. Everything you built is inside it.
+    </div>
+
+    <div class="nx-manual-footer">
+      Nexora Logistics — Admin Manual · Global Shipping. Smarter Tracking.
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

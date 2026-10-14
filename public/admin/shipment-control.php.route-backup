@@ -1,0 +1,643 @@
+<?php
+declare(strict_types=1);
+
+require_once dirname(__DIR__, 2) . '/config/config.php';
+require_once BASE_PATH . '/app/Database.php';
+require_once BASE_PATH . '/app/Auth.php';
+
+use VibrantHub\Auth;
+use VibrantHub\Database;
+
+Auth::requireAdmin();
+
+$db = Database::connection();
+
+$shipmentId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+
+if (!$shipmentId) {
+    http_response_code(400);
+    exit('Invalid shipment ID.');
+}
+
+$stmt = $db->prepare('SELECT * FROM shipments WHERE id = :id LIMIT 1');
+$stmt->execute(['id' => $shipmentId]);
+$shipment = $stmt->fetch();
+
+if (!$shipment) {
+    http_response_code(404);
+    exit('Shipment not found.');
+}
+
+$waypointStmt = $db->prepare(
+    'SELECT * FROM shipment_waypoints
+     WHERE shipment_id = :shipment_id
+     ORDER BY sequence ASC'
+);
+$waypointStmt->execute(['shipment_id' => $shipmentId]);
+$waypoints = $waypointStmt->fetchAll();
+
+$controlStmt = $db->prepare(
+    'SELECT * FROM tracking_controls
+     WHERE shipment_id = :shipment_id
+     LIMIT 1'
+);
+$controlStmt->execute(['shipment_id' => $shipmentId]);
+$control = $controlStmt->fetch();
+
+if (!$control) {
+    $insertControl = $db->prepare(
+        'INSERT INTO tracking_controls
+        (shipment_id, is_running, control_speed, tracking_mode)
+        VALUES (:shipment_id, 0, :speed, :mode)'
+    );
+
+    $insertControl->execute([
+        'shipment_id' => $shipmentId,
+        'speed' => (float) $shipment['speed'],
+        'mode' => (string) $shipment['tracking_mode'],
+    ]);
+
+    $controlStmt->execute(['shipment_id' => $shipmentId]);
+    $control = $controlStmt->fetch();
+}
+
+function transportIcon(string $type): string
+{
+    return match (strtolower($type)) {
+        'airplane', 'plane', 'air' => '✈️',
+        'ship', 'ocean', 'sea' => '🚢',
+        'train', 'rail' => '🚆',
+        default => '🚚',
+    };
+}
+
+function statusClass(string $status): string
+{
+    return match (strtolower($status)) {
+        'delivered', 'completed' => 'success',
+        'in_transit', 'moving' => 'info',
+        'on_hold', 'held', 'paused' => 'warning',
+        'cancelled', 'failed' => 'danger',
+        default => 'muted',
+    };
+}
+
+$icon = transportIcon((string) $shipment['transport_type']);
+$status = (string) $shipment['status'];
+$isRunning = (int) $control['is_running'] === 1;
+
+function e2(mixed $value): string
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipment Control - <?= e2($shipment['tracking_number']) ?></title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f7fb;
+            color: #172033;
+        }
+
+        .topbar {
+            background: #101828;
+            color: #fff;
+            padding: 16px 20px;
+        }
+
+        .topbar-inner {
+            max-width: 1200px;
+            margin: auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .brand {
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        .back {
+            color: #fff;
+            text-decoration: none;
+            background: #344054;
+            padding: 9px 13px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 16px;
+        }
+
+        .header {
+            background: #fff;
+            border-radius: 16px;
+            padding: 22px;
+            margin-bottom: 18px;
+            box-shadow: 0 4px 18px rgba(16, 24, 40, .06);
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .tracking {
+            font-size: 25px;
+            font-weight: 800;
+            margin: 0 0 8px;
+        }
+
+        .route {
+            color: #667085;
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 7px 11px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .success {
+            background: #dcfae6;
+            color: #067647;
+        }
+
+        .info {
+            background: #dff4ff;
+            color: #026aa2;
+        }
+
+        .warning {
+            background: #fff3cd;
+            color: #9a6700;
+        }
+
+        .danger {
+            background: #fee4e2;
+            color: #b42318;
+        }
+
+        .muted {
+            background: #eef2f6;
+            color: #475467;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 18px rgba(16, 24, 40, .06);
+        }
+
+        .card h2 {
+            margin: 0 0 16px;
+            font-size: 18px;
+        }
+
+        .control-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+
+        .running {
+            color: #067647;
+            font-weight: 800;
+        }
+
+        .stopped {
+            color: #b42318;
+            font-weight: 800;
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        button,
+        .btn {
+            border: 0;
+            border-radius: 9px;
+            padding: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .primary {
+            background: #175cd3;
+            color: white;
+        }
+
+        .dark {
+            background: #344054;
+            color: white;
+        }
+
+        .warning-btn {
+            background: #f79009;
+            color: white;
+        }
+
+        .light {
+            background: #eef2f6;
+            color: #172033;
+        }
+
+        .field {
+            margin-bottom: 13px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: #344054;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            border: 1px solid #d0d5dd;
+            border-radius: 9px;
+            padding: 11px;
+            font: inherit;
+            background: #fff;
+        }
+
+        textarea {
+            min-height: 90px;
+            resize: vertical;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .route-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .route-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 13px;
+            border: 1px solid #eaecf0;
+            border-radius: 12px;
+        }
+
+        .route-icon {
+            width: 35px;
+            height: 35px;
+            display: grid;
+            place-items: center;
+            background: #f2f4f7;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .route-name {
+            font-weight: 800;
+        }
+
+        .route-meta {
+            color: #667085;
+            font-size: 12px;
+            margin-top: 3px;
+        }
+
+        .full {
+            grid-column: 1 / -1;
+        }
+
+        .note {
+            background: #eff8ff;
+            border: 1px solid #b2ddff;
+            color: #175cd3;
+            padding: 13px;
+            border-radius: 10px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 760px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .full {
+                grid-column: auto;
+            }
+
+            .header-top {
+                flex-direction: column;
+            }
+
+            .buttons {
+                grid-template-columns: 1fr;
+            }
+
+            .row {
+                grid-template-columns: 1fr;
+            }
+
+            .tracking {
+                font-size: 21px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="topbar">
+    <div class="topbar-inner">
+        <div class="brand">VibrantHub Admin</div>
+        <a class="back" href="shipment-management.php">← Shipment Management</a>
+    </div>
+</div>
+
+<div class="container">
+
+    <section class="header">
+        <div class="header-top">
+            <div>
+                <div class="tracking">
+                    <?= $icon ?> <?= e2($shipment['tracking_number']) ?>
+                </div>
+
+                <div class="route">
+                    <?= e2($shipment['origin']) ?>
+                    →
+                    <?= e2($shipment['destination']) ?>
+                    ·
+                    <?= e2($shipment['customer_name']) ?>
+                </div>
+            </div>
+
+            <span class="badge <?= e2(statusClass($status)) ?>">
+                <?= e2(str_replace('_', ' ', strtoupper($status))) ?>
+            </span>
+        </div>
+    </section>
+
+    <div class="grid">
+
+        <section class="card">
+            <h2>Tracking Controls</h2>
+
+            <div class="control-status">
+                <div>
+                    Tracking engine
+                    <strong>
+                        <?= $isRunning ? 'RUNNING' : 'STOPPED' ?>
+                    </strong>
+                </div>
+
+                <div class="<?= $isRunning ? 'running' : 'stopped' ?>">
+                    <?= $isRunning ? '● Live' : '● Paused' ?>
+                </div>
+            </div>
+
+            <div class="buttons">
+                <button class="primary" type="button" onclick="controlAction('start')">
+                    ▶ Start Tracking
+                </button>
+
+                <button class="warning-btn" type="button" onclick="controlAction('pause')">
+                    ⏸ Pause
+                </button>
+
+                <button class="dark" type="button" onclick="controlAction('resume')">
+                    ▶ Resume
+                </button>
+
+                <button class="light" type="button" onclick="savePosition()">
+                    📍 Set Location
+                </button>
+            </div>
+
+            <br>
+
+            <div class="note">
+                These controls are currently prepared for the tracking engine.
+                The next stage will connect them directly to the database so
+                Start, Pause, Resume, speed and location changes become real
+                operational actions.
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Current Position</h2>
+
+            <div class="row">
+                <div class="field">
+                    <label>Latitude</label>
+                    <input
+                        type="number"
+                        step="0.000001"
+                        value="<?= e2($shipment['current_lat']) ?>"
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Longitude</label>
+                    <input
+                        type="number"
+                        step="0.000001"
+                        value="<?= e2($shipment['current_lng']) ?>"
+                    >
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="field">
+                    <label>Speed</label>
+                    <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value="<?= e2($control['control_speed']) ?>"
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Tracking Mode</label>
+                    <select>
+                        <option value="simulation"
+                            <?= $control['tracking_mode'] === 'simulation' ? 'selected' : '' ?>>
+                            Simulation
+                        </option>
+
+                        <option value="gps"
+                            <?= $control['tracking_mode'] === 'gps' ? 'selected' : '' ?>>
+                            Real GPS
+                        </option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="primary" type="button" onclick="savePosition()">
+                Save Position & Speed
+            </button>
+        </section>
+
+        <section class="card">
+            <h2>Route & Waypoints</h2>
+
+            <div class="route-list">
+
+                <div class="route-item">
+                    <div class="route-icon">📦</div>
+                    <div>
+                        <div class="route-name">
+                            <?= e2($shipment['origin']) ?>
+                        </div>
+                        <div class="route-meta">
+                            Origin
+                        </div>
+                    </div>
+                </div>
+
+                <?php foreach ($waypoints as $waypoint): ?>
+                    <div class="route-item">
+                        <div class="route-icon">
+                            <?= $waypoint['status'] === 'completed' ? '✓' : '📍' ?>
+                        </div>
+
+                        <div>
+                            <div class="route-name">
+                                <?= e2($waypoint['name']) ?>
+                            </div>
+
+                            <div class="route-meta">
+                                <?= e2($waypoint['address'] ?? '') ?>
+                                ·
+                                <?= e2($waypoint['status']) ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+
+                <div class="route-item">
+                    <div class="route-icon">🏁</div>
+                    <div>
+                        <div class="route-name">
+                            <?= e2($shipment['destination']) ?>
+                        </div>
+                        <div class="route-meta">
+                            Final destination
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Operational Event</h2>
+
+            <div class="field">
+                <label>Event Type</label>
+
+                <select>
+                    <option value="">Select event</option>
+                    <option value="customs">Customs Clearance</option>
+                    <option value="inspection">Inspection</option>
+                    <option value="weather">Weather Delay</option>
+                    <option value="traffic">Traffic Delay</option>
+                    <option value="maintenance">Vehicle Maintenance</option>
+                    <option value="other">Other Operational Event</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Location</label>
+                <input type="text" placeholder="Event location">
+            </div>
+
+            <div class="field">
+                <label>Description</label>
+                <textarea placeholder="Enter the legitimate operational event details..."></textarea>
+            </div>
+
+            <button class="warning-btn" type="button" onclick="recordEvent()">
+                Record Operational Event
+            </button>
+        </section>
+
+        <section class="card full">
+            <h2>Shipment Information</h2>
+
+            <div class="row">
+                <div>
+                    <strong>Customer</strong><br>
+                    <?= e2($shipment['customer_name']) ?>
+                </div>
+
+                <div>
+                    <strong>Transport</strong><br>
+                    <?= $icon ?> <?= e2($shipment['transport_type']) ?>
+                </div>
+
+                <div>
+                    <strong>Vehicle / Carrier</strong><br>
+                    <?= e2($shipment['vehicle_name'] ?? '-') ?>
+                </div>
+
+                <div>
+                    <strong>Vehicle Number</strong><br>
+                    <?= e2($shipment['vehicle_number'] ?? '-') ?>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+</body>
+</html>

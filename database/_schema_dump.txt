@@ -1,0 +1,88 @@
+CREATE TABLE subscribers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE workspace_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    active_users INTEGER NOT NULL DEFAULT 0,
+    projects_completed INTEGER NOT NULL DEFAULT 0,
+    uptime REAL NOT NULL DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE admins (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'admin', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT, phone TEXT, address TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE shipments (id INTEGER PRIMARY KEY AUTOINCREMENT, tracking_number TEXT NOT NULL UNIQUE, customer_id INTEGER, customer_name TEXT NOT NULL, customer_email TEXT, customer_phone TEXT, package_description TEXT, transport_type TEXT NOT NULL DEFAULT 'vehicle', vehicle_name TEXT, vehicle_number TEXT, origin TEXT NOT NULL, destination TEXT NOT NULL, origin_lat REAL NOT NULL DEFAULT 0, origin_lng REAL NOT NULL DEFAULT 0, destination_lat REAL NOT NULL DEFAULT 0, destination_lng REAL NOT NULL DEFAULT 0, current_lat REAL NOT NULL DEFAULT 0, current_lng REAL NOT NULL DEFAULT 0, speed REAL NOT NULL DEFAULT 0, distance_total REAL NOT NULL DEFAULT 0, distance_travelled REAL NOT NULL DEFAULT 0, distance_remaining REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', eta TEXT, estimated_delivery TEXT, tracking_mode TEXT NOT NULL DEFAULT 'simulation', last_update TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE SET NULL);
+CREATE TABLE tracking_positions (id INTEGER PRIMARY KEY AUTOINCREMENT, shipment_id INTEGER NOT NULL, latitude REAL NOT NULL, longitude REAL NOT NULL, speed REAL NOT NULL DEFAULT 0, heading REAL NOT NULL DEFAULT 0, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(shipment_id) REFERENCES shipments(id) ON DELETE CASCADE);
+CREATE TABLE tracking_events (id INTEGER PRIMARY KEY AUTOINCREMENT, shipment_id INTEGER NOT NULL, status TEXT NOT NULL, title TEXT NOT NULL, description TEXT, location TEXT, event_time TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, event_type TEXT NOT NULL DEFAULT 'other', latitude REAL, longitude REAL, pauses_tracking INTEGER NOT NULL DEFAULT 0, delay_minutes INTEGER NOT NULL DEFAULT 0, icon TEXT NOT NULL DEFAULT 'event', FOREIGN KEY(shipment_id) REFERENCES shipments(id) ON DELETE CASCADE);
+CREATE TABLE notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, shipment_id INTEGER, type TEXT NOT NULL DEFAULT 'info', title TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(shipment_id) REFERENCES shipments(id) ON DELETE CASCADE);
+CREATE TABLE shipment_waypoints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shipment_id INTEGER NOT NULL,
+    sequence INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    address TEXT,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    waypoint_type TEXT NOT NULL DEFAULT 'waypoint',
+    status TEXT NOT NULL DEFAULT 'pending',
+    arrival_at TEXT,
+    departure_at TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(shipment_id) REFERENCES shipments(id) ON DELETE CASCADE,
+    UNIQUE(shipment_id, sequence)
+);
+CREATE INDEX idx_waypoints_shipment
+ON shipment_waypoints(shipment_id);
+CREATE INDEX idx_waypoints_sequence
+ON shipment_waypoints(shipment_id, sequence);
+CREATE TABLE tracking_controls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shipment_id INTEGER NOT NULL UNIQUE,
+    is_running INTEGER NOT NULL DEFAULT 0,
+    control_speed REAL NOT NULL DEFAULT 0,
+    current_waypoint_id INTEGER,
+    next_waypoint_id INTEGER,
+    tracking_mode TEXT NOT NULL DEFAULT 'simulation',
+    paused_reason TEXT,
+    last_started_at TEXT,
+    last_paused_at TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, current_route_sequence INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(shipment_id) REFERENCES shipments(id) ON DELETE CASCADE,
+    FOREIGN KEY(current_waypoint_id) REFERENCES shipment_waypoints(id) ON DELETE SET NULL,
+    FOREIGN KEY(next_waypoint_id) REFERENCES shipment_waypoints(id) ON DELETE SET NULL
+);
+CREATE TABLE shipment_holds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shipment_id INTEGER NOT NULL,
+    hold_type TEXT NOT NULL CHECK (hold_type IN ("customs", "safety", "security", "compliance", "other")),
+    reason TEXT NOT NULL,
+    details TEXT,
+    status TEXT NOT NULL DEFAULT "active" CHECK (status IN ("active", "cleared")),
+    mandatory INTEGER NOT NULL DEFAULT 1 CHECK (mandatory IN (0, 1)),
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    cleared_at TEXT,
+    cleared_by INTEGER,
+    clearance_note TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (shipment_id) REFERENCES shipments(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL,
+    FOREIGN KEY (cleared_by) REFERENCES admins(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_shipment_holds_active ON shipment_holds (shipment_id, status, mandatory);
+CREATE TABLE shipment_route_points (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shipment_id INTEGER NOT NULL,
+    sequence INTEGER NOT NULL,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    segment_type TEXT NOT NULL DEFAULT 'route',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, waypoint_id INTEGER REFERENCES shipment_waypoints(id) ON DELETE SET NULL,
+    FOREIGN KEY (shipment_id)
+        REFERENCES shipments(id) ON DELETE CASCADE,
+    UNIQUE (shipment_id, sequence)
+);

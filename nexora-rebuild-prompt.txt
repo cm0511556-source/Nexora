@@ -1,0 +1,298 @@
+═══════════════════════════════════════════════════════════════
+NEXORA LOGISTICS — PROJECT REGENERATION PROMPT
+═══════════════════════════════════════════════════════════════
+
+Save this file with the archive. Paste it into any AI to continue
+the project. Update it whenever major features change.
+
+───────────────────────────────────────────────────────────────
+PROJECT
+───────────────────────────────────────────────────────────────
+Name:      Nexora Logistics
+Tagline:   Global Shipping. Smarter Tracking.
+Directory: ~/vibranthub (do NOT rename)
+Stack:     PHP 8.x, SQLite, no framework, no Composer
+Dev env:   Termux on Android
+Server:    php -S 127.0.0.1:8000 (from public/ folder)
+Admin URL: http://127.0.0.1:8000/admin/login.php
+Public:    http://127.0.0.1:8000/
+
+───────────────────────────────────────────────────────────────
+ARCHITECTURE
+───────────────────────────────────────────────────────────────
+Public site (customer-facing):
+  public/index.php          Homepage with hero photo, counters,
+                            services, testimonials, subscribe
+  public/track.php          Tracking page (map + timeline + media)
+  public/track-api.php      JSON endpoint the map polls every 8s
+  public/pre-track.php      Customer name/email/phone form before
+                            they can see tracking (session gate)
+
+Admin (5 top-level sections via shared navbar):
+  Dashboard · Shipments · People · Content · Settings
+
+Admin pages (all in public/admin/):
+  index.php                 Dashboard with 4 hub tiles + reference
+  manual.php                This admin manual (1321 lines)
+  shipments-hub.php         Shipments section hub (4 tiles)
+  shipments.php             Create a shipment form
+  shipment-management.php   List / search all shipments
+  shipment-control.php      Main workspace (6 tabs)
+  shipment-route.php        Multi-modal route editor (Mapbox)
+  tracking-operations.php   Day-to-day controls
+  fleet.php                 All active shipments on one map
+  people.php                People hub
+  tracking-lookups.php      Customer contact list + CSV export
+  testimonials.php          Reviews with photo upload
+  content.php               Content hub
+  site-content.php          Homepage text editor
+  customer-messages.php     Timeline wording editor
+  settings.php              Settings hub
+  carriers.php              Partner carriers with logo upload
+  dashboard-test.php        System diagnostics
+  login.php                 Admin login + logout
+
+Core files:
+  app/Auth.php              Namespace VibrantHub (do NOT change)
+  app/Database.php          Namespace VibrantHub (do NOT change)
+  app/Tracking/Engine.php   Movement simulation
+  app/helpers.php           csrfToken(), verifyCsrf(), redirect()
+  config/config.php         Framework config
+  .env                      APP_NAME, MAPBOX_TOKEN, DB path
+
+───────────────────────────────────────────────────────────────
+DATABASE (SQLite at database/database.sqlite)
+───────────────────────────────────────────────────────────────
+Tables:
+  admins             Admin users
+  customers          Customer records
+  shipments          Main shipment table (25+ columns)
+                     tracking_number, origin/destination + lat/lng,
+                     current_lat/lng, distance_total/travelled/
+                     remaining, status, transport_type, vehicle_name,
+                     carrier_id, estimated_delivery, tracking_mode
+  tracking_controls  Per-shipment is_running, control_speed, mode
+  tracking_events    Timeline events with title/description/
+                     location/event_type/icon/pauses_tracking/
+                     delay_minutes
+  tracking_positions Position history
+  shipment_waypoints Multi-modal route stops with leg_type
+                     (air/sea/rail/truck/van/bike/ped) + waypoint_type
+                     (origin/airport/port/rail_hub/warehouse/office/
+                     depot/home/checkpoint/destination)
+  shipment_route_points  Pre-computed route polyline with segment_type
+  shipment_holds     Formal holds (customs/safety/security/
+                     compliance/other) with mandatory + status
+  shipment_media     Photos + videos with context
+                     (general/pickup/incident/delivery/customs/damage)
+  carriers           Partner companies with logo_path + logo_url
+  event_translations Admin key → customer-facing title/description
+  segment_messages   Transport popup wording (air/sea/rail/road/...)
+  testimonials       Homepage reviews
+  tracking_lookups   Customer name/email/phone captured before tracking
+  site_content       Editable public page text (section/content_key)
+  notifications      (legacy)
+
+───────────────────────────────────────────────────────────────
+KEY INTEGRATIONS
+───────────────────────────────────────────────────────────────
+Mapbox GL JS v3.6.0
+  Token in .env as MAPBOX_TOKEN
+  Style: mapbox://styles/mapbox/satellite-streets-v12
+  Used on: track.php, shipment-control.php, shipment-route.php,
+           fleet.php
+  Attribution: compact mode (required by licence)
+
+Open-Meteo (no key required)
+  Weather HUD on tracking page + admin live map
+  api.open-meteo.com/v1/forecast
+
+Google Translate (loaded lazily on public pages)
+  Only injected when browser language isn't English
+  Brand name wrapped in .notranslate
+
+nx-labels.js — shared helper loaded on every page
+  window.NX.transport(type, vehicleName)  → {emoji, label, color}
+  window.NX.status(status)                → {label, color, bg}
+  window.NX.flag(place)                   → country flag emoji
+  window.NX.date(value)                   → "2026-10-16 22:42"
+  window.NX.coord(lat, lng)               → "34.0522, -118.2437"
+
+nx-popup.js — validation popup library
+  NXP.ok(msg)    green, auto-dismiss 3s
+  NXP.warn(msg)  amber, dismiss on click
+  NXP.err(msg)   red, dismiss on click
+
+───────────────────────────────────────────────────────────────
+HARD-WON RULES (these are the ones that caused bugs)
+───────────────────────────────────────────────────────────────
+1. When embedding PHP data into a <script> block, ALWAYS add
+   these flags to json_encode:
+   JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT |
+   JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+   Otherwise < in the data breaks out and kills the JS parser.
+
+2. Turn OFF display_errors in admin pages:
+   @ini_set('display_errors', '0');
+   @error_reporting(E_ERROR | E_PARSE);
+   Otherwise PHP warnings get written into the HTML/JS.
+
+3. Mapbox fullscreen must be CSS-only (position:fixed + resize),
+   NOT the native Fullscreen API. Native API triggers Android's
+   "drag to exit" toast and the customer can't see it anyway.
+
+4. Great-circle arcs: when drawing a route from point A to point B,
+   compute the SHORT great-circle path in JS, don't use raw DB
+   route points (they can go the long way around the globe).
+
+5. Vehicle marker rotation: only rotate ✈️/🚆/🏍️ icons — leave
+   🚚/🚐/🚶 upright. Compute bearing from current → next stop.
+
+6. .env values must be wrapped as: APP_NAME="Nexora Logistics"
+   Both with double quotes and one line, no spaces around =.
+
+7. Never silently write user-typed data into a JS variable
+   without escaping. This is the #1 cause of "Unexpected token".
+
+───────────────────────────────────────────────────────────────
+VALIDATION RULES (client-side, before submit)
+───────────────────────────────────────────────────────────────
+Create shipment:
+  - tracking number, name, origin, destination required
+  - lat ∈ [-90, 90], lng ∈ [-180, 180]
+  - origin ≠ destination
+  - if origin contains "Los Angeles/New York/etc." and lng > 0,
+    error: "western hemisphere — longitude must be negative"
+  - speed ≥ 0
+  - email format check
+
+Route editor:
+  - name required
+  - lat/lng valid
+  - waypoint_type in whitelist
+  - leg_type in whitelist
+
+Carriers:
+  - name required
+  - logo ≤ 512 KB and MIME ∈ {png, jpeg, webp, svg}
+  - URLs start with http:// or https://
+  - email format
+
+Testimonials:
+  - name + review required, review ≥ 10 chars
+  - rating 1–5
+  - photo ≤ 512 KB and MIME ∈ {png, jpeg, webp}
+
+Incidents:
+  - incident selected
+  - delay_value ≥ 0 and ≤ 100000
+  - delay_unit ∈ {minutes, hours, days, weeks, months}
+
+Media upload:
+  - at least 1 file
+  - MIME whitelist
+  - photos ≤ 2 MB, videos ≤ 20 MB
+
+───────────────────────────────────────────────────────────────
+DESIGN LANGUAGE
+───────────────────────────────────────────────────────────────
+Primary navy:     #0b1d3a
+Secondary navy:   #132a52
+Gold accent:      #f0b429 / #ffd166
+Blue accent:      #2563eb
+Ink:              #0f172a
+Muted:            #5b6b85
+Surface:          #f1f5f9 / #f7f9fc
+
+Font: Plus Jakarta Sans (loaded from Google Fonts CDN)
+
+Buttons:  .btn / .btn-primary / .btn-outline / .btn-gradient
+Cards:    .card / .panel / .tile
+Tabs:     .nx-tab / .nx-tab.active
+Badges:   .pill-tag / .nx-badge
+
+Public brand:  Navy header + gold accents + light background
+Admin brand:   Same palette, compact, functional
+
+───────────────────────────────────────────────────────────────
+CUSTOMER EXPERIENCE
+───────────────────────────────────────────────────────────────
+1. Customer lands on homepage → sees hero + tracking form
+2. Types tracking number → goes to /track.php
+3. First visit: form asks for name/email/phone → saved in DB
+4. Then sees:
+   - Mapbox satellite map with the shipment's current position
+   - Flag pins for origin/destination
+   - Route colored per transport mode (gold air, blue sea,
+     grey truck, purple van, pink bike, dark pedestrian)
+   - Vehicle marker with the correct emoji
+   - Day/night terminator shadow over the world
+   - Weather HUD (temp, condition, local time)
+   - Progress bar (km travelled / remaining / %)
+   - Timeline with customer-friendly wording
+   - Shipment media strip (public photos + videos)
+   - Holds banner (red) if something is wrong
+5. Page auto-refreshes every 8 seconds
+
+Admin sees the SAME map + has control buttons.
+
+───────────────────────────────────────────────────────────────
+ADMIN WORKFLOWS
+───────────────────────────────────────────────────────────────
+Create a shipment:
+  Shipments → Create a Shipment → fill fields → pick carrier
+  → attach photos → submit
+
+Add a multi-modal route:
+  Open shipment → Edit route → + Add a stop → tap map →
+  fill name/type/leg → Save & add another (repeat) →
+  Rebuild route line
+
+Start tracking:
+  Shipment control → Movement tab → set speed →
+  Save Movement Settings → ▶ Start Tracking
+
+Report an incident:
+  Shipment control → Issues tab → pick from dropdown →
+  delay value + unit → note → Record incident
+  → optionally 📷 Attach photos/videos (inline uploader)
+
+Edit customer wording:
+  Content → Customer Messages → change any message → Save
+
+Customize homepage:
+  Content → Site Content → edit fields → Save
+
+View all active shipments:
+  Shipments → Fleet View
+
+See who tracked what:
+  People → Tracking Lookups → search or export CSV
+
+───────────────────────────────────────────────────────────────
+RESUMPTION CHECKLIST (if returning to this project)
+───────────────────────────────────────────────────────────────
+1. Verify DB: sqlite3 database/database.sqlite ".tables"
+2. Check .env exists with MAPBOX_TOKEN
+3. Start server: cd public && php -S 127.0.0.1:8000
+4. Open http://127.0.0.1:8000/ (public) and /admin/login.php
+5. Run the script-balance scan (in manual Appendix E)
+6. Fix any json_encode calls missing JSON_HEX_TAG flags
+
+───────────────────────────────────────────────────────────────
+TONE FOR THE AI
+───────────────────────────────────────────────────────────────
+- Work one step at a time
+- Wait for the user to run each command and paste output
+- Never assume a command succeeded
+- When a patch fails, inspect the ACTUAL file content
+- Prefer str_replace over regex for one-off edits
+- Test with php -l before declaring success
+- Backup before every destructive change
+- The user is on mobile — keep terminal output short
+- Never use /tmp — use $TMPDIR on Termux
+- Preserve the VibrantHub namespace in app/ (legacy)
+
+═══════════════════════════════════════════════════════════════
+END OF PROMPT
+═══════════════════════════════════════════════════════════════
