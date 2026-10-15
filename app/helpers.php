@@ -114,7 +114,9 @@ function asset(string $path = ''): string
  */
 function nxMapStyleUrl(): string
 {
-    $default = 'https://tiles.openfreemap.org/styles/liberty';
+    // Free ESRI World Imagery satellite tiles — no API key, no billing.
+    // Served from the project root so it works offline / behind a CDN.
+    $default = '/assets/map-style-satellite.json';
     $url = trim((string) env('MAP_STYLE_URL', $default));
 
     return $url !== '' ? $url : $default;
