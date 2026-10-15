@@ -480,10 +480,10 @@ $stmt->execute([':sid' => $shipmentId]);
 $wpIns = $pdo->prepare("INSERT INTO shipment_waypoints (
     id, shipment_id, sequence, name, address, latitude, longitude, waypoint_type, status,
     arrival_at, departure_at, leg_type, public_label, public_note, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))");
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))");
 $seq = 0;
 foreach ($wpData as $wp) {
-    $wpIns->execute([$wp[0], $shipmentId, $seq++, $wp[1], $wp[2], $wp[3], $wp[4], $wp[5], $wp[6], $wp[7], $wp[8], $wp[9]]);
+    $wpIns->execute([$wp[0], $shipmentId, $seq++, $wp[1], $wp[2], $wp[3], $wp[4], $wp[5], $wp[6], $wp[7], $wp[8], $wp[9], $wp[10]]);
 }
 echo "Waypoints seeded (" . count($wpData) . ").\n";
 
