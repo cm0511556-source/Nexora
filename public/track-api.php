@@ -241,7 +241,7 @@ try {
         'media' => $media,
         'proof' => $proof,
         'settings' => [
-            'ambient_speed'   => nxAmbientMultiplier(),
+            'ambient_speed'   => nxAmbientMode(),
             'map_style_url'   => nxMapStyleUrl(),
             'chatbot_enabled' => (string) nxSetting('chatbot_enabled', '1') === '1',
         ],

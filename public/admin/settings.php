@@ -17,12 +17,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $op = (string) ($_POST['op'] ?? '');
         if ($op === 'ambient') {
             $speed = (string) ($_POST['ambient_speed'] ?? 'normal');
-            if (!in_array($speed, ['off', 'slow', 'normal', 'fast'], true)) {
+            if (!in_array($speed, ['force_off', 'on', 'off', 'high', 'normal', 'low'], true)) {
                 $speed = 'normal';
             }
             nxSettingSet('ambient_speed', $speed);
             nxAudit('settings.ambient_speed', 'settings', null, $speed);
-            $message = 'Ambient traffic speed saved.';
+            $message = 'Ambient traffic mode saved.';
         }
     }
 }
@@ -84,10 +84,12 @@ select{padding:.6rem .8rem;border:1px solid #cbd5e1;border-radius:9px;font-famil
       <input type="hidden" name="csrf_token" value="<?= hh($csrf) ?>">
       <input type="hidden" name="op" value="ambient">
       <select name="ambient_speed">
-        <option value="off" <?= $ambient === 'off' ? 'selected' : '' ?>>Off</option>
-        <option value="slow" <?= $ambient === 'slow' ? 'selected' : '' ?>>Slow</option>
-        <option value="normal" <?= $ambient === 'normal' ? 'selected' : '' ?>>Normal</option>
-        <option value="fast" <?= $ambient === 'fast' ? 'selected' : '' ?>>Fast</option>
+        <option value="force_off" <?= $ambient === 'force_off' ? 'selected' : '' ?>>Force Off — hidden</option>
+        <option value="on"       <?= $ambient === 'on'       ? 'selected' : '' ?>>On — fully on</option>
+        <option value="off"      <?= $ambient === 'off'      ? 'selected' : '' ?>>Off — toggleable</option>
+        <option value="high"     <?= $ambient === 'high'     ? 'selected' : '' ?>>High — dense + fast</option>
+        <option value="normal"   <?= $ambient === 'normal'   ? 'selected' : '' ?>>Normal — medium (default)</option>
+        <option value="low"      <?= $ambient === 'low'      ? 'selected' : '' ?>>Low — sparse + slow</option>
       </select>
       <button type="submit" class="btn btn-primary">Save</button>
       <span class="tile-count">current: <?= hh($ambient) ?></span>

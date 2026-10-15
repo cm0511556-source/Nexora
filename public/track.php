@@ -615,10 +615,17 @@ function buildAmbient() {
   ambientMarkers.forEach(m => m.m.remove()); ambientMarkers = [];
   if (ambientMult <= 0) return;
   const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-  const planes = rand(14, 22);
-  const ships  = rand(7, 12);
-  const road   = rand(10, 18);
-  const peds   = rand(5, 10);
+  const mode = window.__nxAmbientMode || 'normal';
+  let density = 1, speedMul = 1;
+  switch (mode) {
+    case 'high':   density = 1.8; speedMul = 1.5; break;
+    case 'low':    density = 0.5; speedMul = 0.5; break;
+    default:       density = 1.0; speedMul = 1.0; break;
+  }
+  const planes = Math.floor(rand(14, 22) * density);
+  const ships  = Math.floor(rand(7, 12) * density);
+  const road   = Math.floor(rand(10, 18) * density);
+  const peds   = Math.floor(rand(5, 10) * density);
   const push = (pts, emoji, size, speed, kind) => {
     const el = document.createElement('div');
     el.className = 'nx-amb';
@@ -639,12 +646,12 @@ function buildAmbient() {
         '<span style="color:#64748b;font-size:.78rem;">' + info.text + '</span>' +
       '</div>'
     ));
-    ambientMarkers.push({ m, pts, t, speed, kind });
+    ambientMarkers.push({ m, pts, t, speed: speed * speedMul * ambientMult, kind });
   };
-  for (let i = 0; i < planes; i++) { const [a,b] = randPair(AIR_HUBS); push(arc(a,b,36), '✈️', 16, SP.plane * ambientMult * (0.7 + Math.random()*0.6), 'plane'); }
-  for (let i = 0; i < ships;  i++) { const [a,b] = randPair(SEA_HUBS); push(arc(a,b,36), '🚢', 17, SP.ship * ambientMult * (0.7 + Math.random()*0.6), 'ship'); }
-  for (let i = 0; i < road;   i++) { const [a] = randPair(AIR_HUBS); const isTrain = i % 3 === 0; push([[a[1],a[2]],[a[1]+(Math.random()-.5)*3,a[2]+(Math.random()-.5)*3]], isTrain ? '🚆' : '🚗', 15, (isTrain?SP.train:SP.car) * ambientMult * (0.7 + Math.random()*0.6), isTrain ? 'train' : 'car'); }
-  for (let i = 0; i < peds;   i++) { const [a] = randPair(AIR_HUBS); push([[a[1],a[2]],[a[1]+(Math.random()-.5)*0.4,a[2]+(Math.random()-.5)*0.4]], '🚶', 12, SP.ped * ambientMult * (0.7 + Math.random()*0.6), 'ped'); }
+  for (let i = 0; i < planes; i++) { const [a,b] = randPair(AIR_HUBS); push(arc(a,b,36), '✈️', 16, SP.plane * (0.7 + Math.random()*0.6), 'plane'); }
+  for (let i = 0; i < ships;  i++) { const [a,b] = randPair(SEA_HUBS); push(arc(a,b,36), '🚢', 17, SP.ship * (0.7 + Math.random()*0.6), 'ship'); }
+  for (let i = 0; i < road;   i++) { const [a] = randPair(AIR_HUBS); const isTrain = i % 3 === 0; push([[a[1],a[2]],[a[1]+(Math.random()-.5)*3,a[2]+(Math.random()-.5)*3]], isTrain ? '🚆' : '🚗', 15, (isTrain?SP.train:SP.car) * (0.7 + Math.random()*0.6), isTrain ? 'train' : 'car'); }
+  for (let i = 0; i < peds;   i++) { const [a] = randPair(AIR_HUBS); push([[a[1],a[2]],[a[1]+(Math.random()-.5)*0.4,a[2]+(Math.random()-.5)*0.4]], '🚶', 12, SP.ped * (0.7 + Math.random()*0.6), 'ped'); }
 }
 function tickAmbient() {
   if (!ambientOn) return;
@@ -667,10 +674,39 @@ function tickAmbient() {
 }
 function startAmbient(){ if(ambientTimer)return; buildAmbient(); ambientTimer = setInterval(tickAmbient, 900); }
 function stopAmbient(){ if(ambientTimer){clearInterval(ambientTimer);ambientTimer=null;} ambientMarkers.forEach(m => m.m.remove()); ambientMarkers = []; }
+function setAmbientMode(mode, showBtn) {
+  window.__nxAmbientMode = mode;
+  if (mode === 'force_off') {
+    ambientOn = false;
+    stopAmbient();
+    const btn = document.getElementById('nx-amb-btn');
+    if (btn) btn.style.display = 'none';
+    return;
+  }
+  const btn = document.getElementById('nx-amb-btn');
+  if (showBtn && btn) btn.style.display = '';
+  if (mode === 'off') {
+    ambientOn = false;
+    stopAmbient();
+    if (btn) { btn.textContent = '🌍 Ambient: OFF'; btn.style.display = ''; }
+    return;
+  }
+  // on / high / normal / low
+  ambientOn = true;
+  if (btn) btn.textContent = '🌍 Ambient: ON';
+  if (ambientTimer) { clearInterval(ambientTimer); ambientTimer = null; }
+  startAmbient();
+}
 document.getElementById('nx-amb-btn').addEventListener('click', () => {
   ambientOn = !ambientOn;
-  document.getElementById('nx-amb-btn').textContent = '🌍 Ambient: ' + (ambientOn?'ON':'OFF');
-  if (ambientOn) startAmbient(); else stopAmbient();
+  const btn = document.getElementById('nx-amb-btn');
+  if (ambientOn) {
+    startAmbient();
+    if (btn) btn.textContent = '🌍 Ambient: ON';
+  } else {
+    stopAmbient();
+    if (btn) btn.textContent = '🌍 Ambient: OFF';
+  }
 });
 
 // Media
@@ -822,8 +858,11 @@ async function tick() {
     const s = j.shipment, route = j.route || [];
     window.__nxLastShipment = s;
     window.__nxLastApi = j;
+    window.__nxAmbientSettings = j.settings || {};
     segmentMsgs = j.segment_messages || {};
-    if (j.settings && typeof j.settings.ambient_speed === 'number') {
+    if (j.settings && typeof j.settings.ambient_speed === 'string') {
+      setAmbientMode(j.settings.ambient_speed, true);
+    } else if (j.settings && typeof j.settings.ambient_speed === 'number') {
       ambientMult = j.settings.ambient_speed;
       if (ambientMult <= 0 && ambientTimer) { ambientOn = false; stopAmbient(); const ab = document.getElementById('nx-amb-btn'); if (ab) ab.textContent = '🌍 Ambient: OFF'; }
     }
@@ -1053,7 +1092,11 @@ window.__nxMap = map;
 window.__nxReplayJourney = nxReplayJourney;
 window.__nxApiData = function () { return window.__nxLastApi || {}; };
 
-map.on('load', () => { setTimeout(() => { try { map.resize(); } catch(e){} }, 300); setTimeout(nxHideLoading, 800); tick(); setInterval(tick, 8000); setTimeout(() => { if (ambientOn && ambientMult > 0) startAmbient(); }, 1200); });
+map.on('load', () => { setTimeout(() => { try { map.resize(); } catch(e){} }, 300); setTimeout(nxHideLoading, 800); tick(); setInterval(tick, 8000); setTimeout(() => {
+    // Apply ambient mode from settings DB
+    const mode = (window.__nxAmbientSettings && window.__nxAmbientSettings.ambient_speed) || 'normal';
+    setAmbientMode(mode, true);
+  }, 1200); });
 })();
 </script>
 

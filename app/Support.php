@@ -233,19 +233,18 @@ function nxContent(string $key, string $default = ''): string
 /**
  * Ambient traffic multiplier. Admin picks Off / Slow / Normal / Fast in Settings.
  */
-function nxAmbientMultiplier(): float
+function nxAmbientMode(): string
 {
-    switch (strtolower((string) nxSetting('ambient_speed', 'normal'))) {
-        case 'off':
-            return 0.0;
-        case 'slow':
-            return 0.5;
-        case 'fast':
-            return 2.0;
-        case 'normal':
-        default:
-            return 1.0;
+    $mode = strtolower((string) nxSetting('ambient_speed', 'normal'));
+    if (in_array($mode, ['force_off', 'on', 'off', 'high', 'normal', 'low'], true)) {
+        return $mode;
     }
+    // Legacy values
+    return match ($mode) {
+        'off', 'slow'  => 'off',
+        'fast'         => 'high',
+        default        => 'normal',
+    };
 }
 
 /** Record an admin action in audit_log. */
