@@ -337,7 +337,8 @@ const TRACKING = <?= json_encode($shipment['tracking_number'], JSON_HEX_TAG | JS
 const API = '/track-api.php?tracking=' + encodeURIComponent(TRACKING);
 
 const map = nxCreateMap('map', <?= json_encode($mapStyle, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, {
-  center: [-40, 40], zoom: 3, attributionControl: { compact: true }
+  center: [-40, 40], zoom: 3, attributionControl: { compact: true },
+  projection: 'globe', pitch: 50, bearing: -20
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
 

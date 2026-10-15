@@ -38,10 +38,15 @@
   window.nxCreateMap = function (container, styleUrl, opts) {
     var options = { container: container, style: styleUrl };
     if (opts) {
-      for (var k in opts) {
-        if (Object.prototype.hasOwnProperty.call(opts, k)) options[k] = opts[k];
-      }
-    }
+       for (var k in opts) {
+         if (Object.prototype.hasOwnProperty.call(opts, k)) options[k] = opts[k];
+       }
+     }
+
+    // 3D satellite globe defaults (overridable by caller opts).
+    if (options.projection === undefined) options.projection = 'globe';
+    if (options.pitch === undefined) options.pitch = 50;
+    if (options.bearing === undefined) options.bearing = -20;
 
     var map = new maplibregl.Map(options);
     var loaded = false;
