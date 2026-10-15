@@ -348,6 +348,8 @@ const wpIcons   = { origin:'🟢', destination:'🎯', airport:'✈️', port:'�
 
 let vehMarker = null, wpMarkers = [], ambientMarkers = [], ambientTimer = null, ambientOn = true, fitDone = false;
 let followOn = false, segmentMsgs = {}, lastRouteCache = [], ambientMult = 1;
+// Smooth motion: interpolate between API polls using requestAnimationFrame
+let _smoothFrom = null, _smoothTo = null, _smoothStart = 0, _smoothDur = 1000, _smoothRaf = null;
 
 function decodePolyline(encoded) {
   // OSRM polyline5 decode (mirrors the PHP decoder in route-action.php)
@@ -490,8 +492,15 @@ function setVehicle(lat, lng, heading, route, fallbackEmoji, state) {
     window.__nxVehPopup = new maplibregl.Popup({ offset: 40, closeButton: true });
     vehMarker.setPopup(window.__nxVehPopup);
   } else {
-    vehMarker.setLngLat([lng, lat]);
     vehMarker.getElement().innerHTML = html;
+    // Smooth interpolation between API polls using requestAnimationFrame
+    _smoothFrom = vehMarker.getLngLat();
+    _smoothTo = { lng: lng, lat: lat };
+    _smoothStart = performance.now();
+    _smoothDur = 1000;
+    if (!_smoothRaf) {
+      _smoothRaf = requestAnimationFrame(_smoothStep);
+    }
   }
   if (followOn) {
     try { map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 5), duration: 900 }); } catch(e) {}
@@ -514,6 +523,20 @@ function setVehicle(lat, lng, heading, route, fallbackEmoji, state) {
       '</div>'
     );
   } catch(e) {}
+}
+function _smoothStep(now) {
+  if (!_smoothFrom || !_smoothTo) { _smoothRaf = null; return; }
+  const t = Math.min(1, (now - _smoothStart) / _smoothDur);
+  const e = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2; // easeInOutQuad
+  const lng = _smoothFrom.lng + (_smoothTo.lng - _smoothFrom.lng) * e;
+  const lat = _smoothFrom.lat + (_smoothTo.lat - _smoothFrom.lat) * e;
+  try { vehMarker.setLngLat([lng, lat]); } catch(e) {}
+  if (t < 1) {
+    _smoothRaf = requestAnimationFrame(_smoothStep);
+  } else {
+    try { vehMarker.setLngLat([_smoothTo.lng, _smoothTo.lat]); } catch(e) {}
+    _smoothRaf = null;
+  }
 }
 function esc(s){ const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function renderWaypoints(wps) {
