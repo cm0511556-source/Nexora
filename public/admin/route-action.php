@@ -28,6 +28,42 @@ if (!$s->fetch()) respond(false, 'Shipment not found.', [], 404);
 $allowedLegs = ['air','sea','rail','truck','van','bike','ped'];
 $allowedTypes = ['origin','airport','port','rail_hub','warehouse','office','depot','home','checkpoint','waypoint','destination'];
 
+/**
+ * Fetch an OSRM-encoded polyline for a leg using the public OSRM demo
+ * server (no API key required). Returns null on any failure.
+ */
+function nxFetchOsrmPolyline(array $a, array $b): ?string {
+    $coords = $a['longitude'] . ',' . $a['latitude'] . ';' . $b['longitude'] . ',' . $b['latitude'];
+    $url = 'https://router.project-osrm.org/route/v1/driving/' . $coords . '?overview=full&geometries=polyline&alternatives=false';
+    $ctx = stream_context_create([
+        'http' => ['timeout' => 10, 'header' => 'User-Agent: Nexora/1.0'],
+        'ssl'  => ['verify_peer' => true],
+    ]);
+    $json = @file_get_contents($url, false, $ctx);
+    if ($json === false) return null;
+    $data = json_decode($json, true);
+    return $data['routes'][0]['geometry'] ?? null;
+}
+
+/**
+ * Decode an OSRM polyline5 string into [lat, lng] pairs,
+ * mirroring the JS decoder on the client.
+ */
+function nxDecodePolyline(string $encoded): array {
+    $points = []; $index = 0; $length = strlen($encoded);
+    $lat = 0; $lng = 0;
+    while ($index < $length) {
+        $result = 1; $shift = 0; $b = 0;
+        do { $b = ord($encoded[$index++]) - 63; $result += $b << $shift; $shift += 5; } while ($b >= 0x20);
+        $dlat = ($result & 1) ? ~($result >> 1) : ($result >> 1); $lat += $dlat;
+        $result = 1; $shift = 0;
+        do { $b = ord($encoded[$index++]) - 63; $result += $b << $shift; $shift += 5; } while ($b >= 0x20);
+        $dlng = ($result & 1) ? ~($result >> 1) : ($result >> 1); $lng += $dlng;
+        $points[] = [256 * $lat / 1e6, 256 * $lng / 1e6];
+    }
+    return $points;
+}
+
 try {
     if ($action === 'add') {
         $name = trim((string)($_POST['name'] ?? ''));
@@ -89,32 +125,65 @@ try {
         $wps->execute([':sid' => $shipmentId]);
         $waypoints = $wps->fetchAll();
         if (count($waypoints) < 2) respond(false, 'Need at least 2 waypoints.', [], 400);
+        $db->prepare('DELETE FROM shipment_route_points WHERE shipment_id = :sid')->execute([':sid' => $shipmentId]);
+        $insert = $db->prepare('INSERT INTO shipment_route_points (shipment_id, sequence, latitude, longitude, segment_type, encoded_polyline, waypoint_id) VALUES (:sid, :seq, :lat, :lng, :seg, :poly, :wid)');
         $db->beginTransaction();
         try {
-            $db->prepare('DELETE FROM shipment_route_points WHERE shipment_id = :sid')->execute([':sid' => $shipmentId]);
-            $insert = $db->prepare('INSERT INTO shipment_route_points (shipment_id, sequence, latitude, longitude, segment_type, waypoint_id) VALUES (:sid, :seq, :lat, :lng, :seg, :wid)');
+            $anyOsrm = false;
             $seq = 0;
             for ($i = 0; $i < count($waypoints) - 1; $i++) {
                 $a = $waypoints[$i]; $b = $waypoints[$i + 1];
                 $legType = $b['leg_type'] ?: 'truck';
-                $steps = 20;
-                $bulge = 0.06;
-                for ($st = 0; $st <= $steps; $st++) {
-                    $t = $st / $steps;
-                    $lat = (float)$a['latitude'] + ((float)$b['latitude'] - (float)$a['latitude']) * $t;
-                    $lng = (float)$a['longitude'] + ((float)$b['longitude'] - (float)$a['longitude']) * $t;
-                    $dLat = (float)$b['latitude'] - (float)$a['latitude'];
-                    $dLng = (float)$b['longitude'] - (float)$a['longitude'];
-                    $lat += sin(M_PI * $t) * $bulge * (-$dLng * 0.05);
-                    $lng += sin(M_PI * $t) * $bulge * ($dLat * 0.05);
-                    $wid = ($st === 0) ? (int)$a['id'] : null;
-                    $insert->execute([':sid'=>$shipmentId, ':seq'=>$seq++, ':lat'=>$lat, ':lng'=>$lng, ':seg'=>$legType, ':wid'=>$wid]);
+                $polyline = nxFetchOsrmPolyline($a, $b);
+                if ($polyline !== null) $anyOsrm = true;
+                $points = $polyline !== null ? nxDecodePolyline($polyline) : null;
+                $stepPoints = [];
+                if ($points !== null) {
+                    // Use actual OSRM road geometry (decoded from the polyline)
+                    foreach ($points as $p) {
+                        $stepPoints[] = ['lat' => (float)$p[0], 'lng' => (float)$p[1], 'wid' => null];
+                    }
+                    if (isset($stepPoints[0])) $stepPoints[0]['wid'] = (int)$a['id'];
+                } else {
+                    // Fallback: linear interpolation with a slight arc
+                    $steps = 20;
+                    $bulge = 0.06;
+                    for ($st = 0; $st <= $steps; $st++) {
+                        $t = $st / $steps;
+                        $lat = (float)$a['latitude'] + ((float)$b['latitude'] - (float)$a['latitude']) * $t;
+                        $lng = (float)$a['longitude'] + ((float)$b['longitude'] - (float)$a['longitude']) * $t;
+                        $dLat = (float)$b['latitude'] - (float)$a['latitude'];
+                        $dLng = (float)$b['longitude'] - (float)$a['longitude'];
+                        $lat += sin(M_PI * $t) * $bulge * (-$dLng * 0.05);
+                        $lng += sin(M_PI * $t) * $bulge * ($dLat * 0.05);
+                        $stepPoints[] = ['lat' => $lat, 'lng' => $lng, 'wid' => ($st === 0) ? (int)$a['id'] : null];
+                    }
+                }
+                foreach ($stepPoints as $sp) {
+                    $insert->execute([
+                        ':sid'  => $shipmentId,
+                        ':seq'  => $seq++,
+                        ':lat'  => $sp['lat'],
+                        ':lng'  => $sp['lng'],
+                        ':seg'  => $legType,
+                        ':poly' => $polyline,
+                        ':wid'  => $sp['wid'],
+                    ]);
                 }
             }
             $last = $waypoints[count($waypoints) - 1];
-            $insert->execute([':sid'=>$shipmentId, ':seq'=>$seq++, ':lat'=>$last['latitude'], ':lng'=>$last['longitude'], ':seg'=>$last['leg_type'] ?: 'truck', ':wid'=>$last['id']]);
+            $insert->execute([
+                ':sid'  => $shipmentId,
+                ':seq'  => $seq++,
+                ':lat'  => $last['latitude'],
+                ':lng'  => $last['longitude'],
+                ':seg'  => $last['leg_type'] ?: 'truck',
+                ':poly' => null,
+                ':wid'  => $last['id'],
+            ]);
             $db->commit();
-            respond(true, 'Route rebuilt from ' . count($waypoints) . ' waypoints.');
+            $usedOsm = isset($anyOsrm) && $anyOsrm;
+            respond(true, 'Route rebuilt from ' . count($waypoints) . ' waypoints.' . ($usedOsm ? ' (OSRM road geometry)' : ''));
         } catch (Throwable $e) {
             $db->rollBack();
             respond(false, 'Rebuild failed: ' . $e->getMessage(), [], 500);

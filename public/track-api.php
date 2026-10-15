@@ -88,7 +88,7 @@ try {
     $ws->execute([':s' => $sid]);
     $waypoints = $ws->fetchAll();
 
-    $rs = $pdo->prepare('SELECT sequence,latitude,longitude,segment_type,waypoint_id FROM shipment_route_points WHERE shipment_id = :s ORDER BY sequence ASC');
+    $rs = $pdo->prepare('SELECT sequence,latitude,longitude,segment_type,encoded_polyline,waypoint_id FROM shipment_route_points WHERE shipment_id = :s ORDER BY sequence ASC');
     $rs->execute([':s' => $sid]);
     $routePoints = $rs->fetchAll();
 

@@ -81,6 +81,7 @@ CREATE TABLE shipment_route_points (
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
     segment_type TEXT NOT NULL DEFAULT 'route',
+    encoded_polyline TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, waypoint_id INTEGER REFERENCES shipment_waypoints(id) ON DELETE SET NULL,
     FOREIGN KEY (shipment_id)
         REFERENCES shipments(id) ON DELETE CASCADE,

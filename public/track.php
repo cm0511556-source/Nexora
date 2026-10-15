@@ -349,6 +349,24 @@ const wpIcons   = { origin:'🟢', destination:'🎯', airport:'✈️', port:'�
 let vehMarker = null, wpMarkers = [], ambientMarkers = [], ambientTimer = null, ambientOn = true, fitDone = false;
 let followOn = false, segmentMsgs = {}, lastRouteCache = [], ambientMult = 1;
 
+function decodePolyline(encoded) {
+  // OSRM polyline5 decode (mirrors the PHP decoder in route-action.php)
+  var coords = [];
+  if (!encoded || typeof encoded !== 'string' || encoded.length === 0) return coords;
+  var index = 0, len = encoded.length;
+  var lat = 0, lng = 0;
+  while (index < len) {
+    var result = 1, shift = 0, b;
+    do { b = encoded.charCodeAt(index++) - 63; result += b << shift; shift += 5; } while (b >= 0x20);
+    var dlat = (result & 1) ? ~(result >> 1) : (result >> 1); lat += dlat;
+    result = 1; shift = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result += b << shift; shift += 5; } while (b >= 0x20);
+    var dlng = (result & 1) ? ~(result >> 1) : (result >> 1); lng += dlng;
+    coords.push([256 * lat / 1e6, 256 * lng / 1e6]);
+  }
+  return coords;
+}
+
 function toGeoJSON(route) {
   const features = []; let bucket = [route[0]];
   for (let i = 1; i < route.length; i++) {
@@ -359,8 +377,22 @@ function toGeoJSON(route) {
   return { type:'FeatureCollection', features };
 }
 function makeFeature(pts) {
+  // If any point in this segment carries an encoded_polyline (from OSRM),
+  // decode it into dense [lng, lat] coordinate pairs so the line follows
+  // the actual road geometry instead of straight lines between sparse points.
+  var poly = null;
+  for (var k = 0; k < pts.length; k++) {
+    if (pts[k].encoded_polyline) { poly = pts[k].encoded_polyline; break; }
+  }
+  var coords;
+  if (poly) {
+    var decoded = decodePolyline(poly);
+    coords = decoded.map(function (c) { return [c[1], c[0]]; }); // [lng, lat]
+  } else {
+    coords = pts.map(p => [parseFloat(p.longitude), parseFloat(p.latitude)]);
+  }
   return { type:'Feature', properties:{ color: segColors[pts[0].segment_type] || segColors.route, seg: pts[0].segment_type || 'route' },
-    geometry:{ type:'LineString', coordinates: pts.map(p => [parseFloat(p.longitude), parseFloat(p.latitude)]) } };
+    geometry:{ type:'LineString', coordinates: coords } };
 }
 function renderRoute(route) {
   lastRouteCache = route || [];
@@ -369,7 +401,7 @@ function renderRoute(route) {
   map.addSource('nx-route', { type:'geojson', data: gj });
   map.addLayer({ id:'nx-route-line', type:'line', source:'nx-route',
     layout:{ 'line-cap':'round', 'line-join':'round' },
-    paint:{ 'line-color':['get','color'], 'line-width':3, 'line-opacity':0.9, 'line-dasharray':[2,1.5] } });
+    paint:{ 'line-color':['get','color'], 'line-width':3, 'line-opacity':0.9 } });
   map.on('click', 'nx-route-line', function(ev){
     try {
       const f = ev.features && ev.features[0];
