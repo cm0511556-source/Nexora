@@ -945,34 +945,48 @@ function nxReplayJourney() {
   var btn = document.getElementById('nx-replay-btn');
   if (replayTimer) { clearInterval(replayTimer); replayTimer = null; }
   if (replayMarker) { replayMarker.remove(); replayMarker = null; }
-  if (pts.length < 2) { if (btn) btn.textContent = '▶ Replay Journey'; alert('Not enough journey history to replay yet.'); return; }
-  var i = 0;
-  if (!map.getSource('nx-replay')) {
-    map.addSource('nx-replay', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } } });
-    map.addLayer({ id: 'nx-replay-line', type: 'line', source: 'nx-replay', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#f0b429', 'line-width': 4, 'line-opacity': 0.95 } });
-  } else {
-    try { map.getSource('nx-replay').setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } }); } catch(e) {}
+  if (pts.length < 2) {
+    if (btn) btn.textContent = '▶ Replay Journey';
+    alert('Not enough journey history to replay yet.');
+    return;
   }
+  var i = 0;
+  try {
+    if (!map.getSource('nx-replay')) {
+      map.addSource('nx-replay', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } } });
+      map.addLayer({ id: 'nx-replay-line', type: 'line', source: 'nx-replay', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#f0b429', 'line-width': 5, 'line-opacity': 0.95 } });
+    } else {
+      map.getSource('nx-replay').setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } });
+    }
+  } catch (e) { console.warn('replay source error', e); }
   var el = document.createElement('div');
-  el.style.cssText = 'font-size:22px;filter:drop-shadow(0 0 6px #f0b429);';
-  el.textContent = '🚚';
+  el.style.cssText = 'font-size:26px;filter:drop-shadow(0 0 8px #f0b429);';
+  el.innerHTML = '🚚';
   replayMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([parseFloat(pts[0].longitude), parseFloat(pts[0].latitude)]).addTo(map);
   var coords = [];
   if (btn) btn.textContent = '⏹ Stop replay';
+  // Animate the marker along the recorded path using setInterval.
+  // Moves through each recorded position, drawing the trail behind.
   replayTimer = setInterval(function () {
+    if (!replayMarker || !map) { clearInterval(replayTimer); replayTimer = null; return; }
     if (i >= pts.length) {
       clearInterval(replayTimer); replayTimer = null;
       if (btn) btn.textContent = '▶ Replay Journey';
       return;
     }
     var p = pts[i];
-    coords.push([parseFloat(p.longitude), parseFloat(p.latitude)]);
-    try { map.getSource('nx-replay').setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }); } catch(e) {}
-    replayMarker.setLngLat([parseFloat(p.longitude), parseFloat(p.latitude)]);
+    var lat = parseFloat(p.latitude);
+    var lng = parseFloat(p.longitude);
+    try {
+      coords.push([lng, lat]);
+      map.getSource('nx-replay').setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } });
+      replayMarker.setLngLat([lng, lat]);
+      map.panTo([lng, lat], { animate: true, duration: 100 });
+    } catch (e) { console.warn('replay frame error', e); }
     i++;
-  }, 130);
+  }, 100);
+  window.__nxTimers.push(replayTimer);
 }
-
 // ---- Follow camera ----
 var followBtn = document.getElementById('nx-follow-btn');
 if (followBtn) followBtn.addEventListener('click', function () {
