@@ -206,6 +206,20 @@ function renderMarkers(list) {
     const m = new maplibregl.Marker({ element: el, anchor: 'center' })
       .setLngLat([s.current_lng, s.current_lat])
       .addTo(map);
+    // Rotate vehicle icon to face direction of travel
+    try {
+      const nextStop = (s.route_points && s.route_points.length > 1)
+        ? s.route_points.find(p => Math.hypot(p.latitude - s.current_lat, p.longitude - s.current_lng) > 0.01)
+        : null;
+      if (nextStop) {
+        const bearing = nxBearing(
+          { lat: s.current_lat, lng: s.current_lng },
+          { lat: nextStop.latitude, lng: nextStop.longitude }
+        );
+        const ico = el.querySelector('.nx-veh-emoji');
+        if (ico) ico.style.transform = 'rotate(' + bearing + 'deg)';
+      }
+    } catch(e) {}
 
     const flag_o = flagFor(s.origin);
     const flag_d = flagFor(s.destination);
