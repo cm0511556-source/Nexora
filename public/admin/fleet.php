@@ -228,23 +228,44 @@ function renderMarkers(list) {
       '</div>'
     ));
 
-    // Route line from origin → current → destination
+    // Route line from origin → current → destination (OSRM geometry if available)
     const lineId = 'nx-fleet-route-' + s.id;
     if (!routeLines[lineId]) {
-      const coords = [
-        [s.origin_lng, s.origin_lat],
-        [s.current_lng, s.current_lat],
-        [s.dest_lng, s.dest_lat],
-      ];
+      const routeCoords = (s.route_points && s.route_points.length > 1)
+        ? s.route_points.map(p => [parseFloat(p.longitude), parseFloat(p.latitude)])
+        : [
+            [s.origin_lng, s.origin_lat],
+            [s.current_lng, s.current_lat],
+            [s.dest_lng, s.dest_lat],
+          ];
       map.addSource(lineId, {
         type: 'geojson',
-        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: routeCoords } }
       });
+      // Glow underlay
+      map.addLayer({
+        id: lineId + '-glow', type: 'line', source: lineId,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': meta.tone, 'line-width': 8, 'line-opacity': 0.35, 'line-blur': 4 }
+      });
+      // Bright solid line
       map.addLayer({
         id: lineId, type: 'line', source: lineId,
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': meta.tone, 'line-width': 2, 'line-opacity': 0.55, 'line-dasharray': [2, 1.5] }
+        paint: { 'line-color': meta.tone, 'line-width': 3, 'line-opacity': 0.95 }
       });
+      // Origin marker
+      const oEl = document.createElement('div');
+      oEl.style.cssText = 'font-size:20px;filter:drop-shadow(0 0 5px #16a34a);';
+      oEl.textContent = '🟢';
+      new maplibregl.Marker({ element: oEl, anchor: 'center' })
+        .setLngLat([s.origin_lng, s.origin_lat]).addTo(map);
+      // Destination marker
+      const dEl = document.createElement('div');
+      dEl.style.cssText = 'font-size:20px;filter:drop-shadow(0 0 5px #dc2626);';
+      dEl.textContent = '🎯';
+      new maplibregl.Marker({ element: dEl, anchor: 'center' })
+        .setLngLat([s.dest_lng, s.dest_lat]).addTo(map);
       routeLines[lineId] = true;
     }
 

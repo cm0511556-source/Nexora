@@ -399,9 +399,34 @@ function renderRoute(route) {
   const gj = toGeoJSON(route); const src = map.getSource('nx-route');
   if (src) { src.setData(gj); return; }
   map.addSource('nx-route', { type:'geojson', data: gj });
+  // Glow underlay (wide, semi-transparent)
+  map.addLayer({ id:'nx-route-glow', type:'line', source:'nx-route',
+    layout:{ 'line-cap':'round', 'line-join':'round' },
+    paint:{ 'line-color':'#f0b429', 'line-width':8, 'line-opacity':0.35, 'line-blur':4 } });
+  // Bright solid line on top
   map.addLayer({ id:'nx-route-line', type:'line', source:'nx-route',
     layout:{ 'line-cap':'round', 'line-join':'round' },
-    paint:{ 'line-color':['get','color'], 'line-width':3, 'line-opacity':0.9 } });
+    paint:{ 'line-color':'#f0b429', 'line-width':3, 'line-opacity':0.95 } });
+  // Origin marker
+  if (route && route.length > 0) {
+    const o = route[0];
+    const el = document.createElement('div');
+    el.style.cssText = 'font-size:24px;filter:drop-shadow(0 0 6px #16a34a);';
+    el.textContent = '🟢';
+    new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([parseFloat(o.longitude), parseFloat(o.latitude)])
+      .addTo(map);
+  }
+  // Destination marker
+  if (route && route.length > 1) {
+    const d = route[route.length - 1];
+    const el = document.createElement('div');
+    el.style.cssText = 'font-size:24px;filter:drop-shadow(0 0 6px #dc2626);';
+    el.textContent = '🎯';
+    new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([parseFloat(d.longitude), parseFloat(d.latitude)])
+      .addTo(map);
+  }
   map.on('click', 'nx-route-line', function(ev){
     try {
       const f = ev.features && ev.features[0];

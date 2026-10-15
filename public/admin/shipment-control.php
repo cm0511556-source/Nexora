@@ -1675,10 +1675,17 @@ function initializeMap() {
     }
 
     map.addSource('nx-route', { type:'geojson', data:{ type:'FeatureCollection', features } });
+    // Glow underlay
+    map.addLayer({
+      id: 'nx-route-glow', type: 'line', source: 'nx-route',
+      layout: { 'line-cap':'round', 'line-join':'round' },
+      paint: { 'line-color':['get','color'], 'line-width':8, 'line-opacity':0.35, 'line-blur':4 }
+    });
+    // Bright solid line
     map.addLayer({
       id: 'nx-route-line', type: 'line', source: 'nx-route',
       layout: { 'line-cap':'round', 'line-join':'round' },
-      paint: { 'line-color':['get','color'], 'line-width':4, 'line-opacity':0.9, 'line-dasharray':[2,1.5] }
+      paint: { 'line-color':['get','color'], 'line-width':4, 'line-opacity':0.95 }
     });
 
     // ---- Origin flag ----
